@@ -1,0 +1,18 @@
+# Runtime SQLite databases must never be committed
+*.db
+
+# Real environment files must never be committed
+.env
+
+# .env.example is a template and must remain tracked
+!.env.example
+
+# Python bytecode cache -- generated, never source
+__pycache__/
+*.pyc
+
+# pytest cache -- generated test-run metadata
+.pytest_cache/
+
+# Claude Code local tool settings -- machine-specific, not project config
+.claude/settings.local.json

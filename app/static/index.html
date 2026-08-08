@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Smart Civic Services</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg: "#0f172a",
+            surface: "#1e293b",
+            surfacealt: "#273449",
+            border: "#334155",
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="bg-bg text-slate-200 font-sans leading-relaxed min-h-screen">
+  <header class="flex items-center justify-between flex-wrap gap-2 px-6 py-5 border-b border-slate-700">
+    <h1 class="text-lg font-semibold m-0">AI Smart Civic Services</h1>
+    <nav class="flex gap-4 text-sm">
+      <a href="#/" data-route="citizen" class="nav-link text-slate-400 hover:text-sky-400">Citizen</a>
+      <a href="#/admin" data-route="admin" class="nav-link text-slate-400 hover:text-sky-400">Admin</a>
+    </nav>
+  </header>
+
+  <main class="max-w-4xl mx-auto p-6 grid gap-6">
+
+    <!-- ================= CITIZEN VIEW ================= -->
+    <div id="citizen-view">
+      <section class="bg-surface border border-border rounded-xl p-5 mb-6">
+        <h2 class="text-base font-semibold mb-3">New Here? Register</h2>
+        <form id="register-form">
+          <label for="register-name" class="block text-sm text-slate-400 mb-1">Name</label>
+          <input type="text" id="register-name" required
+            class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+
+          <label for="register-email" class="block text-sm text-slate-400 mb-1">Email</label>
+          <input type="email" id="register-email" required
+            class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+
+          <label for="register-phone" class="block text-sm text-slate-400 mb-1">Phone (optional)</label>
+          <input type="text" id="register-phone"
+            class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+
+          <button type="submit"
+            class="bg-sky-400 text-slate-900 font-semibold rounded-lg px-4 py-2 text-sm hover:bg-sky-500">Register</button>
+          <p id="register-status" class="text-sm mt-2"></p>
+        </form>
+      </section>
+
+      <section class="bg-surface border border-border rounded-xl p-5 mb-6">
+        <h2 class="text-base font-semibold mb-3">Submit a Complaint</h2>
+        <form id="complaint-form">
+          <label for="user-id" class="block text-sm text-slate-400 mb-1">Your User ID</label>
+          <input type="number" id="user-id" required min="1"
+            class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+
+          <label for="description" class="block text-sm text-slate-400 mb-1">Description</label>
+          <textarea id="description" required placeholder="Describe the issue..." rows="3"
+            class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"></textarea>
+
+          <label for="location" class="block text-sm text-slate-400 mb-1">Location (optional)</label>
+          <input type="text" id="location" placeholder="e.g. Main St & 5th Ave"
+            class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+
+          <button type="submit"
+            class="bg-sky-400 text-slate-900 font-semibold rounded-lg px-4 py-2 text-sm hover:bg-sky-500">Submit Complaint</button>
+          <p id="submit-status" class="text-sm mt-2"></p>
+        </form>
+        <div id="submit-result" class="hidden mt-4 p-4 rounded-lg bg-surfacealt border border-border"></div>
+      </section>
+
+      <section class="bg-surface border border-border rounded-xl p-5">
+        <h2 class="text-base font-semibold mb-3">My Complaints &amp; Notifications</h2>
+        <label for="view-user-id" class="block text-sm text-slate-400 mb-1">User ID</label>
+        <input type="number" id="view-user-id" min="1" placeholder="Enter your user ID"
+          class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+        <button type="button" id="refresh-button"
+          class="bg-surfacealt text-slate-200 border border-border rounded-lg px-4 py-2 text-sm hover:bg-slate-600">Refresh</button>
+
+        <h3 class="text-sm font-semibold text-slate-400 mt-5 mb-2">Complaints</h3>
+        <div id="complaints-list" class="grid gap-3">
+          <p class="text-slate-400 text-sm">Enter a user ID to view complaints.</p>
+        </div>
+
+        <h3 class="text-sm font-semibold text-slate-400 mt-5 mb-2">Notifications</h3>
+        <div id="notifications-list" class="grid gap-3">
+          <p class="text-slate-400 text-sm">Enter a user ID to view notifications.</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- ================= ADMIN VIEW ================= -->
+    <div id="admin-view" class="hidden grid gap-6">
+      <section class="bg-surface border border-border rounded-xl p-5">
+        <h2 class="text-base font-semibold mb-3">Admin Access</h2>
+        <p class="text-slate-400 text-sm mb-3">
+          There is no login system. Enter the user ID of an account whose role is "admin" in the
+          database to access admin actions.
+        </p>
+        <label for="admin-id" class="block text-sm text-slate-400 mb-1">Admin User ID</label>
+        <input type="number" id="admin-id" min="1" placeholder="Enter your admin user ID"
+          class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+        <button type="button" id="load-dashboard"
+          class="bg-sky-400 text-slate-900 font-semibold rounded-lg px-4 py-2 text-sm hover:bg-sky-500">Load Dashboard</button>
+        <p id="admin-status" class="text-sm mt-2"></p>
+      </section>
+
+      <section class="bg-surface border border-border rounded-xl p-5">
+        <h2 class="text-base font-semibold mb-3">Analytics</h2>
+        <div id="analytics-stats" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+        <div id="analytics-breakdowns" class="grid sm:grid-cols-2 gap-4 mt-4"></div>
+
+        <h3 class="text-sm font-semibold text-slate-400 mt-5 mb-2">Resolution Time</h3>
+        <div id="resolution-time-stats" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+
+        <h3 class="text-sm font-semibold text-slate-400 mt-5 mb-2">Trends</h3>
+        <div class="flex gap-2 items-center">
+          <label for="trend-group-by" class="text-sm text-slate-400">Group by</label>
+          <select id="trend-group-by"
+            class="px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm">
+            <option value="day">Day</option>
+            <option value="week">Week</option>
+            <option value="month">Month</option>
+          </select>
+          <button type="button" id="load-trends-button"
+            class="bg-surfacealt text-slate-200 border border-border rounded-lg px-4 py-2 text-sm hover:bg-slate-600">Load Trends</button>
+        </div>
+        <ul id="trends-list" class="text-sm mt-2"></ul>
+      </section>
+
+      <section class="bg-surface border border-border rounded-xl p-5">
+        <h2 class="text-base font-semibold mb-3">Filter Complaints</h2>
+        <div class="grid sm:grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+          <div>
+            <label for="filter-search" class="block text-sm text-slate-400 mb-1">Search (description/location)</label>
+            <input type="text" id="filter-search" placeholder="Search..."
+              class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm" />
+          </div>
+          <div>
+            <label for="filter-category" class="block text-sm text-slate-400 mb-1">Category</label>
+            <select id="filter-category" class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm">
+              <option value="">Any</option>
+              <option value="Road">Road</option>
+              <option value="Water">Water</option>
+              <option value="Waste">Waste</option>
+              <option value="Electricity">Electricity</option>
+              <option value="Drainage">Drainage</option>
+              <option value="Safety">Safety</option>
+              <option value="Other">Other</option>
+              <option value="Unanalyzed">Unanalyzed</option>
+            </select>
+          </div>
+          <div>
+            <label for="filter-priority" class="block text-sm text-slate-400 mb-1">Priority</label>
+            <select id="filter-priority" class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm">
+              <option value="">Any</option>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+              <option value="Critical">Critical</option>
+              <option value="Unanalyzed">Unanalyzed</option>
+            </select>
+          </div>
+          <div>
+            <label for="filter-status" class="block text-sm text-slate-400 mb-1">Status</label>
+            <select id="filter-status" class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm">
+              <option value="">Any</option>
+              <option value="open">open</option>
+              <option value="assigned">assigned</option>
+              <option value="in_progress">in_progress</option>
+              <option value="resolved">resolved</option>
+              <option value="closed">closed</option>
+            </select>
+          </div>
+          <div>
+            <label for="filter-department-id" class="block text-sm text-slate-400 mb-1">Department ID</label>
+            <input type="number" id="filter-department-id" min="1" placeholder="e.g. 3"
+              class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm" />
+          </div>
+          <div>
+            <label for="filter-location" class="block text-sm text-slate-400 mb-1">Location</label>
+            <input type="text" id="filter-location" placeholder="e.g. Main St"
+              class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm" />
+          </div>
+          <div>
+            <label for="filter-date-from" class="block text-sm text-slate-400 mb-1">Date from</label>
+            <input type="date" id="filter-date-from"
+              class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm" />
+          </div>
+          <div>
+            <label for="filter-date-to" class="block text-sm text-slate-400 mb-1">Date to</label>
+            <input type="date" id="filter-date-to"
+              class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm" />
+          </div>
+        </div>
+        <button type="button" id="apply-filters-button"
+          class="bg-sky-400 text-slate-900 font-semibold rounded-lg px-4 py-2 text-sm hover:bg-sky-500">Apply Filters</button>
+        <button type="button" id="clear-filters-button"
+          class="bg-surfacealt text-slate-200 border border-border rounded-lg px-4 py-2 text-sm hover:bg-slate-600">Clear Filters</button>
+      </section>
+
+      <section class="bg-surface border border-border rounded-xl p-5">
+        <h2 class="text-base font-semibold mb-3">Complaints</h2>
+        <div class="overflow-x-auto">
+          <table id="complaints-table" class="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th class="text-left px-2 py-2 border-b border-border text-slate-400">ID</th>
+                <th class="text-left px-2 py-2 border-b border-border text-slate-400">Citizen</th>
+                <th class="text-left px-2 py-2 border-b border-border text-slate-400">Description</th>
+                <th class="text-left px-2 py-2 border-b border-border text-slate-400">AI Category / Priority</th>
+                <th class="text-left px-2 py-2 border-b border-border text-slate-400">Department</th>
+                <th class="text-left px-2 py-2 border-b border-border text-slate-400">Status</th>
+                <th class="text-left px-2 py-2 border-b border-border text-slate-400">Update</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="7" class="px-2 py-2">Load the dashboard to view complaints.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/admin.js"></script>
+  <script>
+    function renderRoute() {
+      const isAdmin = window.location.hash.startsWith("#/admin");
+      document.getElementById("citizen-view").classList.toggle("hidden", isAdmin);
+      document.getElementById("admin-view").classList.toggle("hidden", !isAdmin);
+      document.querySelectorAll(".nav-link").forEach((link) => {
+        const active = link.dataset.route === (isAdmin ? "admin" : "citizen");
+        link.classList.toggle("text-sky-400", active);
+        link.classList.toggle("text-slate-400", !active);
+      });
+    }
+    window.addEventListener("hashchange", renderRoute);
+    renderRoute();
+  </script>
+</body>
+</html>

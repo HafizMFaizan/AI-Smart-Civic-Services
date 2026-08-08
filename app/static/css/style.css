@@ -1,0 +1,11 @@
+/* Styling is provided primarily by Tailwind CSS (via CDN, configured
+   inline in index.html). This file only covers the handful of things
+   Tailwind utility classes don't cleanly express. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
