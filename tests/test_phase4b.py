@@ -345,3 +345,108 @@ def test_admin_js_escapes_assigned_department_in_complaints_table():
 
     assert "escapeHtml(c.assigned_department)" in content
     assert "${c.assigned_department ||" not in content
+
+
+# ---------------------------------------------------------------------------
+# Default admin seeding: fixes the admin-bootstrapping gap where a fresh
+# deployment had zero admins and every admin/analytics endpoint was
+# permanently unreachable (POST /api/users only ever creates citizens).
+# ---------------------------------------------------------------------------
+
+
+def test_fresh_database_seeds_exactly_one_default_admin(temp_db_path):
+    db_manager = DatabaseManager(db_path=temp_db_path)
+    db_manager.initialize_database()
+
+    conn = sqlite3.connect(temp_db_path)
+    admins = conn.execute(
+        "SELECT id, name, email, role FROM users WHERE role = 'admin'"
+    ).fetchall()
+    conn.close()
+
+    assert admins == [(1, "Default Admin", "admin@civicservices.local", "admin")]
+
+
+def test_seeding_is_idempotent_across_repeated_initialization(temp_db_path):
+    db_manager = DatabaseManager(db_path=temp_db_path)
+    db_manager.initialize_database()
+    db_manager.initialize_database()
+    db_manager.initialize_database()
+
+    conn = sqlite3.connect(temp_db_path)
+    admin_count = conn.execute(
+        "SELECT COUNT(*) FROM users WHERE role = 'admin'"
+    ).fetchone()[0]
+    conn.close()
+
+    assert admin_count == 1
+
+
+def test_seeding_skipped_when_an_admin_already_exists(temp_db_path):
+    # Build the schema directly (bypassing initialize_database()) so a real
+    # admin can exist BEFORE the first-ever seeding attempt -- otherwise
+    # initialize_database() would already have seeded "Default Admin" first.
+    conn = sqlite3.connect(temp_db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
+    with open(
+        Path(__file__).resolve().parent.parent / "database" / "schema.sql", encoding="utf-8"
+    ) as schema_file:
+        conn.executescript(schema_file.read())
+    conn.execute(
+        "INSERT INTO users (name, email, role) VALUES ('Real Admin', 'real@example.com', 'admin')"
+    )
+    conn.commit()
+    conn.close()
+
+    db_manager = DatabaseManager(db_path=temp_db_path)
+    db_manager.initialize_database()
+
+    conn = sqlite3.connect(temp_db_path)
+    admins = conn.execute("SELECT name, email FROM users WHERE role = 'admin'").fetchall()
+    conn.close()
+
+    assert admins == [("Real Admin", "real@example.com")]
+
+
+def test_seeding_does_not_crash_on_email_collision(temp_db_path):
+    # Extremely unlikely in practice, but a citizen registering with exactly
+    # the default admin email must never crash app startup.
+    conn = sqlite3.connect(temp_db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
+    with open(
+        Path(__file__).resolve().parent.parent / "database" / "schema.sql", encoding="utf-8"
+    ) as schema_file:
+        conn.executescript(schema_file.read())
+    conn.execute(
+        "INSERT INTO users (name, email, role) VALUES ('Squatter', 'admin@civicservices.local', 'citizen')"
+    )
+    conn.commit()
+    conn.close()
+
+    db_manager = DatabaseManager(db_path=temp_db_path)
+    db_manager.initialize_database()  # must not raise
+
+    conn = sqlite3.connect(temp_db_path)
+    admin_count = conn.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'").fetchone()[0]
+    conn.close()
+
+    assert admin_count == 0
+
+
+def test_default_admin_can_access_admin_endpoints_via_api(temp_db_path):
+    db_manager = DatabaseManager(db_path=temp_db_path)
+    app = create_app(db_manager=db_manager, ai_service=_make_ai_service(response_text="{}"))
+    client = TestClient(app)
+
+    response = client.get("/api/admin/complaints", headers={"X-User-Id": "1"})
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+    dashboard = client.get("/api/analytics/dashboard", headers={"X-User-Id": "1"})
+    trends = client.get("/api/analytics/trends", headers={"X-User-Id": "1"})
+    resolution_time = client.get("/api/analytics/resolution-time", headers={"X-User-Id": "1"})
+
+    assert dashboard.status_code == 200
+    assert trends.status_code == 200
+    assert resolution_time.status_code == 200

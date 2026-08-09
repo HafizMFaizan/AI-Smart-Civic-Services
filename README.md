@@ -94,6 +94,15 @@ does not add authentication:
   existing schema supports, checked via `DatabaseManager.get_user_role()` —
   **not** real authentication. Anyone who knows or guesses an admin's user id
   can act as that admin.
+- **A default admin is seeded automatically** on first database
+  initialization (`DatabaseManager.initialize_database()`), so a fresh
+  deployment always has at least one usable admin instead of the admin API
+  being permanently unreachable. On a genuinely empty database this is user
+  id `1` (name "Default Admin", email `admin@civicservices.local`); seeding
+  is skipped if any admin already exists. Because this default is
+  predictable, `X-User-Id: 1` should be treated as a known, public "no
+  auth" convenience for a demo/hackathon deployment, not a secret — the
+  same limitation as every other part of this authentication model.
 - `POST /api/users` is intentionally public (a brand-new citizen has no
   `user_id` yet to prove anything with) and always creates `role='citizen'`
   server-side — it never accepts a client-supplied role, so it cannot be used

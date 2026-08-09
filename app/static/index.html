@@ -106,8 +106,9 @@
           database to access admin actions.
         </p>
         <label for="admin-id" class="block text-sm text-slate-400 mb-1">Admin User ID</label>
-        <input type="number" id="admin-id" min="1" placeholder="Enter your admin user ID"
+        <input type="number" id="admin-id" min="1" value="1" placeholder="Enter your admin user ID"
           class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+        <p class="text-xs text-slate-500 mb-3">A default admin (user ID 1) is seeded automatically on a fresh database.</p>
         <button type="button" id="load-dashboard"
           class="bg-sky-400 text-slate-900 font-semibold rounded-lg px-4 py-2 text-sm hover:bg-sky-500">Load Dashboard</button>
         <p id="admin-status" class="text-sm mt-2"></p>

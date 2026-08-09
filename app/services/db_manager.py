@@ -1,5 +1,6 @@
 """DatabaseManager: the only module allowed to run SQLite operations."""
 
+import logging
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -7,6 +8,8 @@ from typing import Dict, Iterator, List, Optional, Tuple
 
 from app.models.ai_analysis import AIAnalysis, ComplaintCategory
 from app.models.complaint import ComplaintStatus
+
+logger = logging.getLogger(__name__)
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_DB_PATH = _PROJECT_ROOT / "database" / "civic_services.db"
@@ -16,6 +19,12 @@ SCHEMA_PATH = _PROJECT_ROOT / "database" / "schema.sql"
 # ai_analysis categories, so they can't collide with real data.
 UNASSIGNED_DEPARTMENT_LABEL = "Unassigned"
 UNANALYZED_LABEL = "Unanalyzed"
+
+# Seeded automatically on a fresh database so the admin API is reachable at
+# all -- without this, POST /api/users only ever creates citizens, and a
+# brand-new deployment would have no way to bootstrap its first admin.
+DEFAULT_ADMIN_NAME = "Default Admin"
+DEFAULT_ADMIN_EMAIL = "admin@civicservices.local"
 
 
 class DatabaseError(Exception):
@@ -37,8 +46,48 @@ class DatabaseManager:
                 with open(SCHEMA_PATH, "r", encoding="utf-8") as schema_file:
                     conn.executescript(schema_file.read())
                 self._migrate_resolved_at_column(conn)
+                self._seed_default_admin(conn)
         except (sqlite3.Error, OSError) as exc:
             raise DatabaseError(f"Failed to initialize database: {exc}") from exc
+
+    @staticmethod
+    def _seed_default_admin(conn: sqlite3.Connection) -> None:
+        """Ensure at least one admin user exists.
+
+        Idempotent: skipped whenever any admin already exists, no matter how
+        many other users exist. On a genuinely fresh database this is the
+        very first row inserted into `users`, so it lands at id 1 via
+        AUTOINCREMENT -- but that id is a consequence of running first, never
+        hardcoded, so this stays safe to run against a non-empty database too.
+        """
+        admin_count = conn.execute(
+            "SELECT COUNT(*) FROM users WHERE role = 'admin'"
+        ).fetchone()[0]
+        if admin_count > 0:
+            return
+
+        existing = conn.execute(
+            "SELECT id FROM users WHERE email = ?", (DEFAULT_ADMIN_EMAIL,)
+        ).fetchone()
+        if existing is not None:
+            logger.warning(
+                "No admin user exists, but email %s is already taken by "
+                "user_id=%s; skipping automatic admin seeding.",
+                DEFAULT_ADMIN_EMAIL,
+                existing[0],
+            )
+            return
+
+        cursor = conn.execute(
+            "INSERT INTO users (name, email, role) VALUES (?, ?, 'admin')",
+            (DEFAULT_ADMIN_NAME, DEFAULT_ADMIN_EMAIL),
+        )
+        logger.info(
+            "No admin user existed; seeded default admin user_id=%s (email=%s). "
+            "Use this id in the X-User-Id header for admin endpoints.",
+            cursor.lastrowid,
+            DEFAULT_ADMIN_EMAIL,
+        )
 
     @staticmethod
     def _migrate_resolved_at_column(conn: sqlite3.Connection) -> None:
