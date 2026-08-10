@@ -255,6 +255,11 @@ def test_citizen_complaint_response_uses_spec_vocabulary(temp_db_path):
         "ai_summary",
         "ai_status",
         "date",
+        "pipeline_stage",
+        "sla_days",
+        "sla_due_date",
+        "department_remarks",
+        "sla_status",
     }
     assert complaint["assigned_department"] == "Road Maintenance"
     assert complaint["ai_summary"]
@@ -326,8 +331,8 @@ def test_app_js_and_admin_js_declare_no_colliding_top_level_names():
         r"^(?:const|let|(?:async\s+)?function)\s+(\w+)", re.MULTILINE
     )
 
-    app_js_names = set(declaration_pattern.findall((static_js_dir / "app.js").read_text()))
-    admin_js_names = set(declaration_pattern.findall((static_js_dir / "admin.js").read_text()))
+    app_js_names = set(declaration_pattern.findall((static_js_dir / "app.js").read_text(encoding="utf-8")))
+    admin_js_names = set(declaration_pattern.findall((static_js_dir / "admin.js").read_text(encoding="utf-8")))
 
     collisions = app_js_names & admin_js_names
     assert collisions == set(), f"Colliding top-level const/let/function names: {collisions}"
@@ -341,7 +346,7 @@ def test_admin_js_escapes_assigned_department_in_complaints_table():
     # fixed deterministic category mapping, never free user input), but a
     # latent XSS risk if that ever changes -- fixed for defense in depth.
     admin_js_path = Path(__file__).resolve().parent.parent / "app" / "static" / "js" / "admin.js"
-    content = admin_js_path.read_text()
+    content = admin_js_path.read_text(encoding="utf-8")
 
     assert "escapeHtml(c.assigned_department)" in content
     assert "${c.assigned_department ||" not in content

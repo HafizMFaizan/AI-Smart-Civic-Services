@@ -5,9 +5,10 @@
 const API_BASE = "/api";
 
 // Active Logged In Session State
-let currentUser = JSON.parse(localStorage.getItem("civic_user") || '{"id":1,"name":"Faizan Ahmed","email":"faizan@civicservices.pk","role":"citizen"}');
+let currentUser = JSON.parse(localStorage.getItem("civic_user") || "null");
 let citizenMap = null;
 let mapMarkers = [];
+let myComplaintsCache = [];
 
 // Sample High Quality Civic Issue Dataset with SLA & DevOps Pipeline Stages
 const SAMPLE_ISSUES = [
@@ -77,7 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderRoute();
   initCitizenMap();
   loadCitizenComplaintsFromUI();
-  setupNotificationsMock();
+  loadNotifications();
 });
 
 // City Health Risk Indicator Engine (Req #20)
@@ -142,7 +143,7 @@ function renderAuthControls() {
   } else {
     if (currentUser) {
       // Check if citizen has 0 active complaints for Citizen Active Green Light (Req #20)
-      const activeComplaintsCount = SAMPLE_ISSUES.filter(c => c.status !== 'resolved' && c.status !== 'closed').length;
+      const activeComplaintsCount = myComplaintsCache.filter(c => c.status !== 'resolved' && c.status !== 'closed').length;
       const greenLightBadge = activeComplaintsCount === 0 
         ? `<span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" title="0 Pending Complaints - Active Status Green"></span>` 
         : `<span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" title="${activeComplaintsCount} Active Complaints"></span>`;
@@ -259,21 +260,13 @@ async function handleLoginSubmit(e) {
       }
       renderAuthControls();
       closeAuthModal();
+      loadCitizenComplaintsFromUI();
+      loadNotifications();
     } else {
       alert("Invalid login credentials.");
     }
   } catch (err) {
-    if (email.includes("admin")) {
-      const adminUser = { id: 1, name: "Super Municipal Admin", email, role: "super_admin" };
-      localStorage.setItem("civic_admin_user", JSON.stringify(adminUser));
-      alert(`Logged in as Super Admin!`);
-      window.location.hash = "#/admin";
-    } else {
-      currentUser = { id: 1, name: "Faizan Ahmed", email, role: "citizen" };
-      localStorage.setItem("civic_user", JSON.stringify(currentUser));
-    }
-    renderAuthControls();
-    closeAuthModal();
+    alert("Unable to reach the server. Please check your connection and try again.");
   }
 }
 
@@ -297,30 +290,55 @@ async function handleSignupSubmit(e) {
       localStorage.setItem("civic_user", JSON.stringify(currentUser));
       renderAuthControls();
       closeAuthModal();
+      loadCitizenComplaintsFromUI();
+      loadNotifications();
       alert(`Account registered & verified! Welcome to AI Smart Civic Services, ${name}.`);
     } else {
-      alert("Sign up complete! Logged in.");
-      closeAuthModal();
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || "Failed to sign up. Please try again.");
     }
   } catch (err) {
-    alert("Signed up!");
-    closeAuthModal();
+    alert("Unable to reach the server. Please check your connection and try again.");
   }
 }
 
 async function handleAdminRequestSubmit(e) {
   e.preventDefault();
+  if (!currentUser) {
+    alert("Please sign up or sign in with a citizen account first, then apply for admin rights.");
+    switchAuthTab("signup");
+    return;
+  }
+
   const dept = document.getElementById("admin-req-dept").value;
   const reason = document.getElementById("admin-req-reason").value;
 
-  alert(`Admin application for ${dept} submitted! Pending Super Admin review.`);
-  closeAuthModal();
+  try {
+    const res = await fetch(`${API_BASE}/admin-applications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: currentUser.id, department_name: dept, reason })
+    });
+
+    if (res.ok) {
+      alert(`Admin application for ${dept} submitted! Pending Super Admin review.`);
+      closeAuthModal();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || "Failed to submit admin application. Please try again.");
+    }
+  } catch (err) {
+    alert("Unable to reach the server. Please check your connection and try again.");
+  }
 }
 
 function handleLogout() {
   localStorage.removeItem("civic_user");
   currentUser = null;
+  myComplaintsCache = [];
   renderAuthControls();
+  loadCitizenComplaintsFromUI();
+  loadNotifications();
 }
 
 // Navigation Tab Switcher
@@ -442,26 +460,51 @@ function filterMapMarkers(status) {
   });
 }
 
-// Load Citizen Feed with DevOps Stepper
-function loadCitizenComplaintsFromUI() {
-  const feedContainer = document.getElementById("recent-reports-feed");
-  if (!feedContainer) return;
+const PIPELINE_STAGE_PROGRESS = ["submitted", "ai_triaged", "dispatched", "in_repair", "quality_check", "resolved"];
 
-  feedContainer.innerHTML = SAMPLE_ISSUES.map(c => `
+// Computes a "Day X of Y" / "Overdue by N days" line from live SLA fields.
+function computeDayByDaySlaText(c) {
+  if (c.status === "resolved" || c.status === "closed") {
+    return c.sla_status === "breached" ? "⚠️ Resolved after SLA deadline" : "✅ Resolved within SLA window";
+  }
+  if (!c.sla_due_date) return null;
+
+  const due = new Date(c.sla_due_date.replace(" ", "T"));
+  const now = new Date();
+
+  if (c.sla_status === "breached") {
+    const overdueDays = Math.max(1, Math.ceil((now - due) / 86400000));
+    return `⚠️ Overdue by ${overdueDays} day${overdueDays === 1 ? "" : "s"}`;
+  }
+
+  if (c.date && c.sla_days) {
+    const created = new Date(c.date.replace(" ", "T"));
+    const elapsedDays = Math.min(c.sla_days, Math.max(1, Math.floor((now - created) / 86400000) + 1));
+    return `Day ${elapsedDays} of ${c.sla_days} — On Track`;
+  }
+  return "On Track";
+}
+
+function renderReportCard(c) {
+  const stage = c.pipeline_stage || "submitted";
+  const stageIndex = PIPELINE_STAGE_PROGRESS.indexOf(stage);
+  const dayStatus = computeDayByDaySlaText(c);
+
+  return `
     <div class="glass-card-interactive p-3.5 space-y-2.5 border border-bordercolor">
       <div class="flex gap-3">
-        <img src="${c.img}" class="w-16 h-16 rounded-xl object-cover shrink-0 border border-bordercolor">
+        <img src="${c.img || getRandomIssueImg(c.category)}" class="w-16 h-16 rounded-xl object-cover shrink-0 border border-bordercolor">
         <div class="flex-1 space-y-1">
           <div class="flex items-center justify-between text-xs">
-            <span class="font-bold text-white line-clamp-1">#${c.id} - ${escapeHtml(c.description)}</span>
+            <span class="font-bold text-white line-clamp-1">#${c.complaint_id} - ${escapeHtml(c.description)}</span>
           </div>
           <p class="text-[11px] text-slate-400 flex items-center gap-1">
             <i class="fa-solid fa-location-dot text-rose-400"></i>
-            <span>${escapeHtml(c.location)}</span>
+            <span>${escapeHtml(c.location || "City Location")}</span>
           </p>
           <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
-            <span class="${categoryBadgeClass(c.category)}">${c.category}</span>
-            <span class="${priorityBadgeClass(c.priority)}">${c.priority} (${c.sla_days}D SLA)</span>
+            <span class="${categoryBadgeClass(c.category)}">${c.category || "Pending AI Triage"}</span>
+            <span class="${priorityBadgeClass(c.priority)}">${c.priority || "Pending"} ${c.sla_days ? `(${c.sla_days}D SLA)` : ""}</span>
           </div>
         </div>
       </div>
@@ -470,14 +513,15 @@ function loadCitizenComplaintsFromUI() {
       <div class="p-2 bg-slate-100 rounded-xl border border-slate-200 text-[10px] space-y-1">
         <div class="flex items-center justify-between text-slate-500 font-semibold mb-1">
           <span>Service Lifecycle Stage:</span>
-          <span class="text-sky-600 font-bold uppercase">${c.pipeline_stage}</span>
+          <span class="text-sky-600 font-bold uppercase">${stage.replace("_", " ")}</span>
         </div>
         <div class="flex items-center gap-1">
-          <div class="flex-1 h-1.5 rounded-full ${c.pipeline_stage === 'submitted' || c.pipeline_stage === 'ai_triaged' || c.pipeline_stage === 'in_repair' || c.pipeline_stage === 'resolved' ? 'bg-sky-400' : 'bg-slate-700'}"></div>
-          <div class="flex-1 h-1.5 rounded-full ${c.pipeline_stage === 'ai_triaged' || c.pipeline_stage === 'in_repair' || c.pipeline_stage === 'resolved' ? 'bg-indigo-400' : 'bg-slate-700'}"></div>
-          <div class="flex-1 h-1.5 rounded-full ${c.pipeline_stage === 'in_repair' || c.pipeline_stage === 'resolved' ? 'bg-amber-400' : 'bg-slate-700'}"></div>
-          <div class="flex-1 h-1.5 rounded-full ${c.pipeline_stage === 'resolved' ? 'bg-emerald-400' : 'bg-slate-700'}"></div>
+          <div class="flex-1 h-1.5 rounded-full ${stageIndex >= 0 ? "bg-sky-400" : "bg-slate-700"}"></div>
+          <div class="flex-1 h-1.5 rounded-full ${stageIndex >= 1 ? "bg-indigo-400" : "bg-slate-700"}"></div>
+          <div class="flex-1 h-1.5 rounded-full ${stageIndex >= 3 ? "bg-amber-400" : "bg-slate-700"}"></div>
+          <div class="flex-1 h-1.5 rounded-full ${stageIndex >= 5 ? "bg-emerald-400" : "bg-slate-700"}"></div>
         </div>
+        ${dayStatus ? `<div class="pt-1 font-semibold ${c.sla_status === "breached" ? "text-rose-500" : "text-emerald-600"}">${dayStatus}</div>` : ""}
       </div>
 
       ${c.department_remarks ? `
@@ -490,9 +534,54 @@ function loadCitizenComplaintsFromUI() {
           <i class="fa-solid fa-wand-magic-sparkles text-sky-400 shrink-0 mt-0.5"></i>
           <span>${escapeHtml(c.ai_summary)}</span>
         </div>
-      ` : ''}
+      ` : ""}
     </div>
-  `).join("");
+  `;
+}
+
+// Load Citizen Feed with DevOps Stepper -- real data for signed-in citizens,
+// sample preview only when nobody is signed in yet.
+async function loadCitizenComplaintsFromUI() {
+  const feedContainer = document.getElementById("recent-reports-feed");
+  if (!feedContainer) return;
+
+  if (!currentUser) {
+    myComplaintsCache = [];
+    feedContainer.innerHTML = SAMPLE_ISSUES.map(c => renderReportCard({
+      complaint_id: c.id,
+      description: c.description,
+      location: c.location,
+      category: c.category,
+      priority: c.priority,
+      sla_days: c.sla_days,
+      sla_due_date: null,
+      sla_status: c.sla_status,
+      pipeline_stage: c.pipeline_stage,
+      department_remarks: c.department_remarks,
+      ai_summary: c.ai_summary,
+      img: c.img,
+      status: c.status,
+      date: c.date
+    })).join("");
+    return;
+  }
+
+  feedContainer.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Loading your reports...</p>`;
+
+  try {
+    const res = await fetch(`${API_BASE}/citizens/${currentUser.id}/complaints`);
+    if (!res.ok) throw new Error("Failed to load complaints");
+    const complaints = await res.json();
+    myComplaintsCache = complaints;
+
+    feedContainer.innerHTML = complaints.length > 0
+      ? complaints.map(renderReportCard).join("")
+      : `<p class="text-xs text-slate-400 text-center py-4">No complaints submitted yet. Tap "Report Live Issue" to file your first one.</p>`;
+  } catch (err) {
+    myComplaintsCache = [];
+    feedContainer.innerHTML = `<p class="text-xs text-rose-400 text-center py-4">Failed to load your reports.</p>`;
+  }
+  renderAuthControls();
 }
 
 // Modal Handlers & Gatekeeper (Req #2)
@@ -502,7 +591,34 @@ function openReportModal() {
     openAuthModal();
     return;
   }
+  populateDepartmentDropdown();
   document.getElementById("report-modal").classList.remove("hidden");
+}
+
+let departmentsLoadPromise = null;
+
+async function populateDepartmentDropdown() {
+  const select = document.getElementById("department-select");
+  if (!select || select.options.length > 1) return; // already populated
+
+  if (!departmentsLoadPromise) {
+    departmentsLoadPromise = fetch(`${API_BASE}/departments`)
+      .then(res => (res.ok ? res.json() : []))
+      .catch(() => {
+        console.log("Could not load department list; AI auto-detect remains available.");
+        return [];
+      });
+  }
+
+  const departments = await departmentsLoadPromise;
+  if (select.options.length > 1) return; // populated by a concurrent call while awaiting
+
+  departments.forEach(d => {
+    const option = document.createElement("option");
+    option.value = d.department_id;
+    option.textContent = `${d.name} (${d.category})`;
+    select.appendChild(option);
+  });
 }
 
 function closeReportModal() {
@@ -565,26 +681,33 @@ async function submitReportForm(event) {
 
   const description = document.getElementById("description").value;
   const location = document.getElementById("location").value;
+  const departmentSelect = document.getElementById("department-select");
+  const departmentId = departmentSelect && departmentSelect.value ? parseInt(departmentSelect.value, 10) : null;
+
+  const payload = { user_id: currentUser.id, description, location };
+  if (departmentId) payload.department_id = departmentId;
 
   try {
     const res = await fetch(`${API_BASE}/complaints`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: currentUser.id, description, location })
+      body: JSON.stringify(payload)
     });
 
     if (res.ok) {
       const data = await res.json();
-      alert(`Complaint #${data.complaint_id} submitted! AI SLA Target: ${data.sla_days} Days. Auto-routed to ${data.department_name}.`);
+      alert(`Complaint #${data.complaint_id} submitted! AI SLA Target: ${data.sla_days} Days. Routed to ${data.department_name}.`);
+      document.getElementById("complaint-form").reset();
+      closeReportModal();
+      loadCitizenComplaintsFromUI();
+      fetchCityHealthRisk();
     } else {
-      alert("Complaint submitted successfully! AI Auto-Triage complete.");
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || "Failed to submit complaint. Please try again.");
     }
   } catch (err) {
-    alert("Report logged in system!");
+    alert("Unable to reach the server. Please check your connection and try again.");
   }
-  closeReportModal();
-  loadCitizenComplaintsFromUI();
-  fetchCityHealthRisk();
 }
 
 // AI Chatbot Drawer
@@ -636,27 +759,66 @@ function handleChatSubmit(event) {
 }
 
 // Notifications Mock
-function setupNotificationsMock() {
+async function loadNotifications() {
   const container = document.getElementById("notifications-list");
+  const badge = document.getElementById("unread-count-badge");
   if (!container) return;
-  container.innerHTML = `
-    <div class="p-2.5 bg-surfacealt rounded-xl border border-bordercolor flex items-start gap-2">
-      <i class="fa-solid fa-circle-check text-emerald-400 mt-0.5"></i>
-      <div>
-        <div class="font-semibold text-white">Complaint #103 Resolved</div>
-        <div class="text-[10px] text-slate-400">Waste cleared. Green SLA badge awarded!</div>
-      </div>
-    </div>
-  `;
+
+  if (!currentUser) {
+    container.innerHTML = `<p class="text-xs text-slate-400 text-center py-3">Sign in to see your notifications.</p>`;
+    if (badge) badge.style.display = "none";
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/citizens/${currentUser.id}/notifications`);
+    if (!res.ok) throw new Error("Failed to load notifications");
+    const notifications = await res.json();
+
+    const unreadCount = notifications.filter(n => !n.is_read).length;
+    if (badge) {
+      badge.textContent = unreadCount;
+      badge.style.display = unreadCount > 0 ? "flex" : "none";
+    }
+
+    container.innerHTML = notifications.length > 0
+      ? notifications.map(n => `
+          <div class="p-2.5 ${n.is_read ? "bg-surfacealt/50" : "bg-surfacealt"} rounded-xl border border-bordercolor flex items-start gap-2">
+            <i class="fa-solid ${n.is_read ? "fa-circle-check text-slate-500" : "fa-circle-exclamation text-sky-400"} mt-0.5"></i>
+            <div>
+              <div class="font-semibold text-white">${escapeHtml(n.message)}</div>
+              <div class="text-[10px] text-slate-400">${n.created_at ? new Date(n.created_at.replace(" ", "T")).toLocaleString() : ""}</div>
+            </div>
+          </div>
+        `).join("")
+      : `<p class="text-xs text-slate-400 text-center py-3">No notifications yet.</p>`;
+  } catch (err) {
+    container.innerHTML = `<p class="text-xs text-rose-400 text-center py-3">Failed to load notifications.</p>`;
+  }
 }
 
 function toggleNotifications() {
   document.getElementById("notifications-dropdown").classList.toggle("hidden");
 }
 
-function clearNotifications() {
-  document.getElementById("unread-count-badge").style.display = "none";
+async function clearNotifications() {
+  if (currentUser) {
+    try {
+      const res = await fetch(`${API_BASE}/citizens/${currentUser.id}/notifications`);
+      if (res.ok) {
+        const notifications = await res.json();
+        await Promise.all(
+          notifications
+            .filter(n => !n.is_read)
+            .map(n => fetch(`${API_BASE}/notifications/${n.id}/read`, { method: "PATCH" }))
+        );
+      }
+    } catch (err) {
+      // best-effort: dropdown still closes even if marking-as-read failed
+    }
+  }
   document.getElementById("notifications-dropdown").classList.add("hidden");
+  loadNotifications();
 }
 
 function priorityBadgeClass(p) {

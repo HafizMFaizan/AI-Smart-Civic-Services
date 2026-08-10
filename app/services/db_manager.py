@@ -11,6 +11,7 @@ from typing import Dict, Iterator, List, Optional, Tuple
 
 from app.models.ai_analysis import AIAnalysis, ComplaintCategory, ComplaintPriority
 from app.models.complaint import ComplaintStatus, PipelineStage
+from app.models.department import CATEGORY_TO_DEPARTMENT_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ class DatabaseManager:
                 self._migrate_schema_columns(conn)
                 self._seed_default_admin(conn)
                 self._seed_default_super_admin(conn)
+                self._seed_default_departments(conn)
         except (sqlite3.Error, OSError) as exc:
             raise DatabaseError(f"Failed to initialize database: {exc}") from exc
 
@@ -97,6 +99,14 @@ class DatabaseManager:
             conn.execute(
                 "INSERT INTO users (name, email, role, password_hash, permissions) VALUES (?, ?, 'admin', ?, ?)",
                 (DEFAULT_SUPER_ADMIN_NAME, DEFAULT_SUPER_ADMIN_EMAIL, DatabaseManager._hash_password("superadmin123"), json.dumps(["all"])),
+            )
+
+    @staticmethod
+    def _seed_default_departments(conn: sqlite3.Connection) -> None:
+        for category, name in CATEGORY_TO_DEPARTMENT_NAME.items():
+            conn.execute(
+                "INSERT OR IGNORE INTO departments (name, category) VALUES (?, ?)",
+                (name, category.value),
             )
 
     @staticmethod
@@ -392,6 +402,15 @@ class DatabaseManager:
         except sqlite3.Error as exc:
             raise DatabaseError(f"Failed to check department existence: {exc}") from exc
 
+    def get_all_departments(self) -> List[Tuple]:
+        try:
+            with self._connect() as conn:
+                return conn.execute(
+                    "SELECT id, name, category FROM departments ORDER BY name"
+                ).fetchall()
+        except sqlite3.Error as exc:
+            raise DatabaseError(f"Failed to fetch departments: {exc}") from exc
+
     def get_or_create_department(self, name: str, category: ComplaintCategory) -> int:
         try:
             with self._connect() as conn:
@@ -539,8 +558,9 @@ class DatabaseManager:
         try:
             with self._connect() as conn:
                 return conn.execute(
-                    """
-                    SELECT c.id, c.description, c.location, c.status, c.department_id, d.name, a.category, a.priority, a.summary, a.ai_status, c.created_at
+                    f"""
+                    SELECT c.id, c.description, c.location, c.status, c.department_id, d.name, a.category, a.priority, a.summary, a.ai_status, c.created_at,
+                           c.pipeline_stage, c.sla_days, c.sla_due_date, c.department_remarks, {self._EFFECTIVE_SLA_STATUS_SQL} AS effective_sla_status
                     FROM complaints c
                     LEFT JOIN departments d ON c.department_id = d.id
                     LEFT JOIN ai_analysis a ON c.id = a.complaint_id

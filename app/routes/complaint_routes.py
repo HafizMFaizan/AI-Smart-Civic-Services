@@ -63,6 +63,17 @@ class CitizenComplaintResponse(BaseModel):
     ai_summary: Optional[str]
     ai_status: Optional[str]
     date: Optional[str]
+    pipeline_stage: Optional[str]
+    sla_days: Optional[int]
+    sla_due_date: Optional[str]
+    department_remarks: Optional[str]
+    sla_status: Optional[str]
+
+
+class DepartmentResponse(BaseModel):
+    department_id: int
+    name: str
+    category: str
 
 
 class NotificationResponse(BaseModel):
@@ -136,9 +147,25 @@ def get_citizen_complaints(user_id: int) -> List[CitizenComplaintResponse]:
             ai_summary=row[8],
             ai_status=row[9],
             date=str(row[10]) if row[10] is not None else None,
+            pipeline_stage=row[11],
+            sla_days=row[12],
+            sla_due_date=str(row[13]) if row[13] is not None else None,
+            department_remarks=row[14],
+            sla_status=row[15],
         )
         for row in rows
     ]
+
+
+@router.get("/departments", response_model=List[DepartmentResponse])
+def list_departments() -> List[DepartmentResponse]:
+    try:
+        rows = _db_manager.get_all_departments()
+    except DatabaseError:
+        logger.exception("Failed to fetch departments.")
+        raise HTTPException(status_code=500, detail="Failed to fetch departments.")
+
+    return [DepartmentResponse(department_id=row[0], name=row[1], category=row[2]) for row in rows]
 
 
 @router.get("/citizens/{user_id}/notifications", response_model=List[NotificationResponse])
