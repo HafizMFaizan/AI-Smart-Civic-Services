@@ -1,8 +1,10 @@
 """DatabaseManager: SQLite data persistence layer with RBAC, SLA management, analytics, and audit logging."""
 
 import hashlib
+import hmac
 import json
 import logging
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -37,6 +39,9 @@ class DuplicateEmailError(DatabaseError):
 
 
 class DatabaseManager:
+    _PBKDF2_PREFIX = "pbkdf2_sha256$"
+    _PBKDF2_ITERATIONS = 260_000
+
     def __init__(self, db_path: Optional[str] = None) -> None:
         self._db_path = db_path or str(DEFAULT_DB_PATH)
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -55,7 +60,26 @@ class DatabaseManager:
 
     @staticmethod
     def _hash_password(password: str) -> str:
-        return hashlib.sha256(password.encode("utf-8")).hexdigest()
+        salt = os.urandom(16)
+        derived = hashlib.pbkdf2_hmac(
+            "sha256", password.encode("utf-8"), salt, DatabaseManager._PBKDF2_ITERATIONS
+        )
+        return f"{DatabaseManager._PBKDF2_PREFIX}{DatabaseManager._PBKDF2_ITERATIONS}${salt.hex()}${derived.hex()}"
+
+    @staticmethod
+    def _verify_password(password: str, stored_hash: str) -> bool:
+        if stored_hash.startswith(DatabaseManager._PBKDF2_PREFIX):
+            try:
+                _, iterations_str, salt_hex, hash_hex = stored_hash.split("$")
+                derived = hashlib.pbkdf2_hmac(
+                    "sha256", password.encode("utf-8"), bytes.fromhex(salt_hex), int(iterations_str)
+                )
+                return hmac.compare_digest(derived.hex(), hash_hex)
+            except (ValueError, TypeError):
+                return False
+        # Legacy unsalted SHA-256 hash from before the salted-hash migration.
+        legacy_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
+        return hmac.compare_digest(legacy_hash, stored_hash)
 
     @staticmethod
     def _seed_default_admin(conn: sqlite3.Connection) -> None:
@@ -175,15 +199,21 @@ class DatabaseManager:
             raise DatabaseError(f"Failed to register user: {exc}") from exc
 
     def authenticate_user(self, email: str, password: str) -> Optional[Dict]:
-        p_hash = self._hash_password(password)
         try:
             with self._connect() as conn:
                 row = conn.execute(
-                    "SELECT id, name, email, phone, role, permissions FROM users WHERE email = ? AND password_hash = ?",
-                    (email, p_hash),
+                    "SELECT id, name, email, phone, role, permissions, password_hash FROM users WHERE email = ?",
+                    (email,),
                 ).fetchone()
-                if not row:
+                if not row or not self._verify_password(password, row[6]):
                     return None
+
+                if not row[6].startswith(self._PBKDF2_PREFIX):
+                    conn.execute(
+                        "UPDATE users SET password_hash = ? WHERE id = ?",
+                        (self._hash_password(password), row[0]),
+                    )
+
                 return {
                     "id": row[0],
                     "name": row[1],
@@ -217,6 +247,10 @@ class DatabaseManager:
     def get_user_role(self, user_id: int) -> Optional[str]:
         u = self.get_user_by_id(user_id)
         return u["role"] if u else None
+
+    def get_user_permissions(self, user_id: int) -> List[str]:
+        u = self.get_user_by_id(user_id)
+        return u["permissions"] if u else []
 
     # Admin Onboarding Applications
     def create_admin_application(self, user_id: int, department_name: str, reason: str) -> int:

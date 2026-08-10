@@ -4,9 +4,11 @@ Every AnalyticsService method is exposed as-is; the "Unassigned" and
 "Unanalyzed" buckets from Phase 2 pass straight through the Dict[str, int]
 response fields without being filtered or renamed.
 
-Gated by the same require_admin check used in admin_routes.py (X-User-Id +
-users.role == "admin") -- reused directly, not duplicated, per the Phase 3
-authentication limitation: this is still not real authentication.
+Gated by the "view_analytics" permission (X-User-Id + users.permissions),
+reusing the same require_permission dependency factory admin_routes.py
+builds its own checks from -- not duplicated. super_admin always bypasses.
+This is still not real session-based authentication, just header-trusted
+identity, per the Phase 3 limitation.
 """
 
 import logging
@@ -15,7 +17,7 @@ from typing import Dict, List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.routes.admin_routes import require_admin
+from app.routes.admin_routes import require_view_analytics
 from app.services.analytics_service import AnalyticsService, AnalyticsServiceError
 
 logger = logging.getLogger(__name__)
@@ -58,7 +60,7 @@ class ResolutionTimeResponse(BaseModel):
 
 @router.get("/analytics/dashboard", response_model=AnalyticsDashboardResponse)
 def get_analytics_dashboard(
-    admin_user_id: int = Depends(require_admin),
+    admin_user_id: int = Depends(require_view_analytics),
 ) -> AnalyticsDashboardResponse:
     try:
         return AnalyticsDashboardResponse(
@@ -77,7 +79,7 @@ def get_analytics_dashboard(
 @router.get("/analytics/trends", response_model=TrendsResponse)
 def get_complaint_trends(
     group_by: Literal["day", "week", "month"] = "day",
-    admin_user_id: int = Depends(require_admin),
+    admin_user_id: int = Depends(require_view_analytics),
 ) -> TrendsResponse:
     try:
         series = _analytics_service.complaint_trends(group_by)
@@ -89,7 +91,7 @@ def get_complaint_trends(
 
 @router.get("/analytics/resolution-time", response_model=ResolutionTimeResponse)
 def get_resolution_time(
-    admin_user_id: int = Depends(require_admin),
+    admin_user_id: int = Depends(require_view_analytics),
 ) -> ResolutionTimeResponse:
     try:
         stats = _analytics_service.resolution_time_stats()

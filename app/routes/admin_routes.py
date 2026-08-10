@@ -58,6 +58,33 @@ def require_super_admin(x_user_id: Optional[int] = Header(default=None)) -> int:
     return x_user_id
 
 
+def require_permission(permission: str):
+    """Builds a dependency gating on a specific RBAC permission.
+
+    super_admin always bypasses (their permissions are conceptually "all").
+    Regular admins must have the exact permission string in users.permissions.
+    """
+
+    def dependency(x_user_id: Optional[int] = Header(default=None)) -> int:
+        require_admin(x_user_id)
+        role = _db_manager.get_user_role(x_user_id)
+        if role == "super_admin":
+            return x_user_id
+        try:
+            permissions = _db_manager.get_user_permissions(x_user_id)
+        except DatabaseError:
+            raise HTTPException(status_code=500, detail="Failed to verify admin permissions.")
+        if permission not in permissions:
+            raise HTTPException(status_code=403, detail=f"Missing required permission: {permission!r}")
+        return x_user_id
+
+    return dependency
+
+
+require_manage_complaints = require_permission("manage_complaints")
+require_view_analytics = require_permission("view_analytics")
+
+
 class AdminComplaintResponse(BaseModel):
     complaint_id: int
     user_id: int
@@ -117,7 +144,7 @@ def approve_admin_application(app_id: int, super_admin_id: int = Depends(require
 
 @router.get("/admin/complaints", response_model=List[AdminComplaintResponse])
 def list_all_complaints(
-    admin_user_id: int = Depends(require_admin),
+    admin_user_id: int = Depends(require_manage_complaints),
     category: Optional[str] = Query(default=None),
     priority: Optional[str] = Query(default=None),
     status: Optional[ComplaintStatus] = Query(default=None),
@@ -178,7 +205,7 @@ def list_all_complaints(
 def update_complaint_status(
     complaint_id: int,
     payload: StatusUpdateRequest,
-    admin_user_id: int = Depends(require_admin),
+    admin_user_id: int = Depends(require_manage_complaints),
 ) -> StatusUpdateResponse:
     try:
         _db_manager.update_complaint_status(complaint_id, payload.status, payload.department_remarks)
@@ -209,7 +236,7 @@ def update_complaint_status(
 def advance_complaint_stage(
     complaint_id: int,
     payload: StageUpdateRequest,
-    admin_user_id: int = Depends(require_admin),
+    admin_user_id: int = Depends(require_manage_complaints),
 ) -> StageUpdateResponse:
     if _complaint_manager is None:
         raise HTTPException(status_code=500, detail="Pipeline stage advancement is not configured.")

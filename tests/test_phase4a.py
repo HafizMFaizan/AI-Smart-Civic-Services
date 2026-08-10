@@ -57,7 +57,8 @@ def _seed_users(db_path: str) -> dict:
         "INSERT INTO users (name, email, role) VALUES ('Citizen One', 'citizen1@example.com', 'citizen')"
     ).lastrowid
     admin_id = conn.execute(
-        "INSERT INTO users (name, email, role) VALUES ('Admin One', 'admin1@example.com', 'admin')"
+        "INSERT INTO users (name, email, role, permissions) VALUES "
+        "('Admin One', 'admin1@example.com', 'admin', '[\"manage_complaints\", \"view_analytics\"]')"
     ).lastrowid
     conn.commit()
     conn.close()
