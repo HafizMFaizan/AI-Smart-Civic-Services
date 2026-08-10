@@ -1,10 +1,4 @@
-"""User registration routes.
-
-Public and unauthenticated by necessity -- a brand-new citizen has no
-user_id yet to prove anything with. Always creates role='citizen' on the
-server side; never accepts a client-supplied role, since this endpoint has
-no authentication and must not let a caller self-promote to admin.
-"""
+"""User authentication, registration, and city health routes."""
 
 import logging
 from typing import Optional
@@ -16,7 +10,7 @@ from app.services.db_manager import DatabaseError, DatabaseManager, DuplicateEma
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["users"])
+router = APIRouter(tags=["users", "auth"])
 
 _db_manager: Optional[DatabaseManager] = None
 
@@ -29,28 +23,59 @@ def init_app(db_manager: DatabaseManager) -> None:
 class UserRegisterRequest(BaseModel):
     name: str = Field(min_length=1)
     email: str = Field(min_length=3)
+    password: str = Field(default="password123", min_length=4)
     phone: Optional[str] = None
 
 
-class UserRegisterResponse(BaseModel):
-    user_id: int
-    name: str
+class UserLoginRequest(BaseModel):
     email: str
-    role: str
+    password: str
 
 
-@router.post("/users", response_model=UserRegisterResponse, status_code=201)
-def register_user(payload: UserRegisterRequest) -> UserRegisterResponse:
+class AdminApplicationRequest(BaseModel):
+    user_id: int
+    department_name: str = "General Triage"
+    reason: str = "Municipal Officer Application"
+
+
+@router.post("/auth/signup", status_code=201)
+@router.post("/users", status_code=201)
+def register_user(payload: UserRegisterRequest):
     try:
-        user_id = _db_manager.create_user(
-            name=payload.name, email=payload.email, phone=payload.phone
+        user_id = _db_manager.register_user(
+            name=payload.name, email=payload.email, password=payload.password, phone=payload.phone, role="citizen"
         )
     except DuplicateEmailError:
         raise HTTPException(status_code=409, detail="Email already registered.")
     except DatabaseError:
-        logger.exception("Failed to register user with email=%s", payload.email)
-        raise HTTPException(
-            status_code=500, detail="Failed to register user. Please try again later."
-        )
+        raise HTTPException(status_code=500, detail="Failed to register user.")
 
-    return UserRegisterResponse(user_id=user_id, name=payload.name, email=payload.email, role="citizen")
+    return {"user_id": user_id, "name": payload.name, "email": payload.email, "role": "citizen", "message": "Account created successfully."}
+
+
+@router.post("/auth/login")
+def login_user(payload: UserLoginRequest):
+    user = _db_manager.authenticate_user(email=payload.email, password=payload.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+    return {"status": "authenticated", "user": user}
+
+
+@router.get("/city-health")
+def get_city_health():
+    if not _db_manager:
+        return {"risk_level": "GREEN", "description": "Normal Operations"}
+    return _db_manager.get_city_health_risk()
+
+
+@router.post("/admin-applications", status_code=201)
+def apply_for_admin(payload: AdminApplicationRequest):
+    try:
+        app_id = _db_manager.create_admin_application(
+            user_id=payload.user_id,
+            department_name=payload.department_name,
+            reason=payload.reason
+        )
+        return {"application_id": app_id, "status": "pending", "message": "Admin application submitted. Pending Super Admin approval."}
+    except DatabaseError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))

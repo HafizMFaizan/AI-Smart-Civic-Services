@@ -1,154 +1,607 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Smart Civic Services</title>
+  <title>AI Smart Civic Services - Enterprise Municipal Command & Citizen Portal</title>
+
+  <!-- Google Fonts & Font Awesome Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            heading: ['Outfit', 'sans-serif'],
+          },
           colors: {
-            bg: "#0f172a",
-            surface: "#1e293b",
-            surfacealt: "#273449",
-            border: "#334155",
+            darkbg: "#070c14",
+            surface: "#0f172a",
+            surfacecard: "#131b2e",
+            surfacealt: "#1c2841",
+            bordercolor: "rgba(255, 255, 255, 0.1)",
+            accentcyan: "#38bdf8",
+            accentindigo: "#6366f1",
+            accentemerald: "#10b981",
+            accentrose: "#f43f5e",
+            accentamber: "#f59e0b",
           },
         },
       },
     };
   </script>
+
+  <!-- Custom Master Styles -->
   <link rel="stylesheet" href="/css/style.css" />
 </head>
-<body class="bg-bg text-slate-200 font-sans leading-relaxed min-h-screen">
-  <header class="flex items-center justify-between flex-wrap gap-2 px-6 py-5 border-b border-slate-700">
-    <h1 class="text-lg font-semibold m-0">AI Smart Civic Services</h1>
-    <nav class="flex gap-4 text-sm">
-      <a href="#/" data-route="citizen" class="nav-link text-slate-400 hover:text-sky-400">Citizen</a>
-      <a href="#/admin" data-route="admin" class="nav-link text-slate-400 hover:text-sky-400">Admin</a>
-    </nav>
-  </header>
+<body class="bg-darkbg text-slate-100 font-sans min-h-screen selection:bg-sky-500 selection:text-white">
 
-  <main class="max-w-4xl mx-auto p-6 grid gap-6">
+  <!-- ================= 0. CITY HEALTH RISK BAR (Req #20) ================= -->
+  <div id="city-health-bar" class="w-full bg-emerald-950/80 border-b border-emerald-500/30 px-4 py-1.5 flex items-center justify-between text-xs transition-all backdrop-blur-md">
+    <div class="flex items-center gap-2 max-w-7xl mx-auto w-full">
+      <span id="city-risk-light" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+      <span class="font-bold tracking-wide uppercase text-slate-200">City Status:</span>
+      <span id="city-risk-text" class="text-emerald-300 font-semibold">🟢 Optimal Operations - All Municipal Systems Green</span>
+    </div>
+  </div>
 
-    <!-- ================= CITIZEN VIEW ================= -->
-    <div id="citizen-view">
-      <section class="bg-surface border border-border rounded-xl p-5 mb-6">
-        <h2 class="text-base font-semibold mb-3">New Here? Register</h2>
-        <form id="register-form">
-          <label for="register-name" class="block text-sm text-slate-400 mb-1">Name</label>
-          <input type="text" id="register-name" required
-            class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
-
-          <label for="register-email" class="block text-sm text-slate-400 mb-1">Email</label>
-          <input type="email" id="register-email" required
-            class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
-
-          <label for="register-phone" class="block text-sm text-slate-400 mb-1">Phone (optional)</label>
-          <input type="text" id="register-phone"
-            class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
-
-          <button type="submit"
-            class="bg-sky-400 text-slate-900 font-semibold rounded-lg px-4 py-2 text-sm hover:bg-sky-500">Register</button>
-          <p id="register-status" class="text-sm mt-2"></p>
-        </form>
-      </section>
-
-      <section class="bg-surface border border-border rounded-xl p-5 mb-6">
-        <h2 class="text-base font-semibold mb-3">Submit a Complaint</h2>
-        <form id="complaint-form">
-          <label for="user-id" class="block text-sm text-slate-400 mb-1">Your User ID</label>
-          <input type="number" id="user-id" required min="1"
-            class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
-
-          <label for="description" class="block text-sm text-slate-400 mb-1">Description</label>
-          <textarea id="description" required placeholder="Describe the issue..." rows="3"
-            class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"></textarea>
-
-          <label for="location" class="block text-sm text-slate-400 mb-1">Location (optional)</label>
-          <input type="text" id="location" placeholder="e.g. Main St & 5th Ave"
-            class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
-
-          <button type="submit"
-            class="bg-sky-400 text-slate-900 font-semibold rounded-lg px-4 py-2 text-sm hover:bg-sky-500">Submit Complaint</button>
-          <p id="submit-status" class="text-sm mt-2"></p>
-        </form>
-        <div id="submit-result" class="hidden mt-4 p-4 rounded-lg bg-surfacealt border border-border"></div>
-      </section>
-
-      <section class="bg-surface border border-border rounded-xl p-5">
-        <h2 class="text-base font-semibold mb-3">My Complaints &amp; Notifications</h2>
-        <label for="view-user-id" class="block text-sm text-slate-400 mb-1">User ID</label>
-        <input type="number" id="view-user-id" min="1" placeholder="Enter your user ID"
-          class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
-        <button type="button" id="refresh-button"
-          class="bg-surfacealt text-slate-200 border border-border rounded-lg px-4 py-2 text-sm hover:bg-slate-600">Refresh</button>
-
-        <h3 class="text-sm font-semibold text-slate-400 mt-5 mb-2">Complaints</h3>
-        <div id="complaints-list" class="grid gap-3">
-          <p class="text-slate-400 text-sm">Enter a user ID to view complaints.</p>
+  <!-- ================= TOP GLOBAL HEADER NAVIGATION ================= -->
+  <header class="sticky top-0 z-40 bg-surfacecard/80 backdrop-blur-2xl border-b border-bordercolor px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4 shadow-xl">
+    <!-- Brand Logo & Live AI Pulse -->
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-emerald-400 p-0.5 shadow-lg shadow-sky-500/20">
+        <div class="w-full h-full bg-darkbg rounded-[10px] flex items-center justify-center">
+          <i class="fa-solid fa-city text-sky-400 text-lg"></i>
         </div>
-
-        <h3 class="text-sm font-semibold text-slate-400 mt-5 mb-2">Notifications</h3>
-        <div id="notifications-list" class="grid gap-3">
-          <p class="text-slate-400 text-sm">Enter a user ID to view notifications.</p>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-lg font-bold font-heading tracking-tight bg-gradient-to-r from-white via-slate-100 to-sky-300 bg-clip-text text-transparent">
+            AI Smart Civic Services
+          </h1>
+          <span id="portal-context-badge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
+            <span class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping"></span>
+            Citizen Portal
+          </span>
         </div>
-      </section>
+        <p class="text-xs text-slate-400 hidden sm:block">Automated AI Triage, Real-time Dispatch &amp; City Analytics</p>
+      </div>
     </div>
 
-    <!-- ================= ADMIN VIEW ================= -->
-    <div id="admin-view" class="hidden grid gap-6">
-      <section class="bg-surface border border-border rounded-xl p-5">
-        <h2 class="text-base font-semibold mb-3">Admin Access</h2>
-        <p class="text-slate-400 text-sm mb-3">
-          There is no login system. Enter the user ID of an account whose role is "admin" in the
-          database to access admin actions.
-        </p>
-        <label for="admin-id" class="block text-sm text-slate-400 mb-1">Admin User ID</label>
-        <input type="number" id="admin-id" min="1" value="1" placeholder="Enter your admin user ID"
-          class="w-full px-3 py-2 mb-3 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
-        <p class="text-xs text-slate-500 mb-3">A default admin (user ID 1) is seeded automatically on a fresh database.</p>
-        <button type="button" id="load-dashboard"
-          class="bg-sky-400 text-slate-900 font-semibold rounded-lg px-4 py-2 text-sm hover:bg-sky-500">Load Dashboard</button>
-        <p id="admin-status" class="text-sm mt-2"></p>
-      </section>
+    <!-- Hidden Navigation Views Switcher for API compatibility -->
+    <div id="nav-tab-switcher" class="hidden">
+      <button id="nav-citizen-btn" data-route="citizen" onclick="switchTab('citizen')"
+        class="nav-tab px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all duration-200 bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20">
+        <i class="fa-solid fa-user-gear text-sm"></i>
+        <span>Citizen Portal</span>
+      </button>
+      <button id="nav-admin-btn" data-route="admin" onclick="switchTab('admin')"
+        class="nav-tab px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all duration-200 text-slate-400 hover:text-slate-200">
+        <i class="fa-solid fa-chart-line text-sm"></i>
+        <span>Admin Command Center</span>
+      </button>
+    </div>
 
-      <section class="bg-surface border border-border rounded-xl p-5">
-        <h2 class="text-base font-semibold mb-3">Analytics</h2>
-        <div id="analytics-stats" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
-        <div id="analytics-breakdowns" class="grid sm:grid-cols-2 gap-4 mt-4"></div>
+    <!-- Quick Actions Header & Auth Controls -->
+    <div class="flex items-center gap-3">
+      <!-- Report Issue Button -->
+      <button onclick="openReportModal()"
+        class="hidden md:flex items-center gap-2 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-sky-500/25 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+        <i class="fa-solid fa-camera"></i>
+        <span>Report New Issue</span>
+      </button>
 
-        <h3 class="text-sm font-semibold text-slate-400 mt-5 mb-2">Resolution Time</h3>
-        <div id="resolution-time-stats" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+      <!-- Ask AI Floating Widget Launcher -->
+      <button onclick="toggleAIChat()"
+        class="flex items-center gap-2 bg-surfacealt hover:bg-slate-800 border border-sky-500/30 text-sky-300 font-semibold text-xs px-3.5 py-2 rounded-xl transition-all">
+        <i class="fa-solid fa-robot text-sky-400 text-sm"></i>
+        <span class="hidden sm:inline">Ask Civic AI</span>
+      </button>
 
-        <h3 class="text-sm font-semibold text-slate-400 mt-5 mb-2">Trends</h3>
-        <div class="flex gap-2 items-center">
-          <label for="trend-group-by" class="text-sm text-slate-400">Group by</label>
-          <select id="trend-group-by"
-            class="px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm">
-            <option value="day">Day</option>
-            <option value="week">Week</option>
-            <option value="month">Month</option>
-          </select>
-          <button type="button" id="load-trends-button"
-            class="bg-surfacealt text-slate-200 border border-border rounded-lg px-4 py-2 text-sm hover:bg-slate-600">Load Trends</button>
+      <!-- Citizen Active Status & Auth Pill (Req #2, #20) -->
+      <div id="auth-controls-container" class="flex items-center gap-2">
+        <!-- Injected via JavaScript (Sign In button OR Profile + Active Green Light) -->
+        <button onclick="openAuthModal()" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-sky-500/20">
+          <i class="fa-solid fa-right-to-bracket"></i>
+          <span>Sign In / Register</span>
+        </button>
+      </div>
+
+      <!-- Notification Bell -->
+      <div class="relative">
+        <button onclick="toggleNotifications()" class="relative p-2.5 rounded-xl bg-surfacealt text-slate-300 hover:text-white border border-bordercolor transition">
+          <i class="fa-solid fa-bell text-sm"></i>
+          <span id="unread-count-badge" class="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">2</span>
+        </button>
+        <!-- Notifications Dropdown Drawer -->
+        <div id="notifications-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-surfacecard border border-bordercolor rounded-2xl shadow-2xl p-4 z-50">
+          <div class="flex items-center justify-between pb-3 border-b border-bordercolor mb-3">
+            <h4 class="font-bold text-sm text-white">Live Notifications</h4>
+            <button onclick="clearNotifications()" class="text-xs text-sky-400 hover:underline">Mark all read</button>
+          </div>
+          <div id="notifications-list" class="space-y-2.5 max-h-64 overflow-y-auto text-xs">
+            <!-- Dynamic notifications -->
+          </div>
         </div>
-        <ul id="trends-list" class="text-sm mt-2"></ul>
-      </section>
+      </div>
+    </div>
+  </header>
 
-      <section class="bg-surface border border-border rounded-xl p-5">
-        <h2 class="text-base font-semibold mb-3">Filter Complaints</h2>
-        <div class="grid sm:grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-          <div>
-            <label for="filter-search" class="block text-sm text-slate-400 mb-1">Search (description/location)</label>
-            <input type="text" id="filter-search" placeholder="Search..."
-              class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm" />
+  <!-- ================= MAIN SPA SHELL CONTENT CONTAINER ================= -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-8 py-6 space-y-6">
+
+    <!-- ================================================================= -->
+    <!-- 1. CITIZEN PORTAL VIEW                                            -->
+    <!-- ================================================================= -->
+    <div id="citizen-view" class="space-y-6">
+
+      <!-- CITIZEN AUTHENTICATION LANDING GATE BANNER (Req #2) -->
+      <div id="citizen-landing-gate" class="glass-panel p-6 border-l-4 border-l-sky-500 bg-gradient-to-r from-sky-950/50 via-surfacecard to-indigo-950/50 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div class="space-y-2">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
+            <i class="fa-solid fa-shield-halved"></i>
+            <span>Citizen Authentication Required</span>
+          </div>
+          <h2 class="text-2xl font-bold font-heading text-white">Welcome to AI Smart Civic Services Portal</h2>
+          <p class="text-xs sm:text-sm text-slate-300 max-w-2xl">
+            Register or Sign In with your secure citizen account to submit geo-tagged civic complaints, receive real-time SMS status updates, and track AI automated dispatch.
+          </p>
+        </div>
+        <div id="citizen-gate-buttons" class="flex flex-wrap items-center gap-3 shrink-0">
+          <button onclick="openAuthModal('login')" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-sky-500/20 transition">
+            <i class="fa-solid fa-right-to-bracket"></i>
+            <span>Sign In to Account</span>
+          </button>
+          <button onclick="openAuthModal('signup')" class="bg-surfacealt hover:bg-slate-800 text-slate-200 border border-bordercolor font-bold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 transition">
+            <i class="fa-solid fa-user-plus text-sky-400"></i>
+            <span>Register Citizen</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- HERO ACTION CARDS ROW (Matching Image 4) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <!-- Quick Issue Reporting Card -->
+        <div class="glass-panel p-6 border-l-4 border-l-sky-500 flex flex-col justify-between relative overflow-hidden group">
+          <div class="absolute -right-6 -bottom-6 opacity-10 group-hover:opacity-20 transition text-sky-400">
+            <i class="fa-solid fa-triangle-exclamation text-9xl"></i>
           </div>
           <div>
-            <label for="filter-category" class="block text-sm text-slate-400 mb-1">Category</label>
-            <select id="filter-category" class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm">
-              <option value="">Any</option>
+            <div class="w-12 h-12 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center mb-4 text-sky-400">
+              <i class="fa-solid fa-camera-retro text-xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-1">Report a New Issue</h3>
+            <p class="text-xs text-slate-400 mb-4">Spotted a pothole, broken streetlight, or waste overflow? Capture a photo &amp; auto-submit to city teams.</p>
+          </div>
+          <button onclick="openReportModal()" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-sky-500/20 transition">
+            <i class="fa-solid fa-plus-circle"></i>
+            <span>Submit Live Photo Report</span>
+          </button>
+        </div>
+
+        <!-- Track Complaint by ID Card -->
+        <div class="glass-panel p-6 border-l-4 border-l-indigo-500 flex flex-col justify-between">
+          <div>
+            <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-4 text-indigo-400">
+              <i class="fa-solid fa-magnifying-glass-location text-xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-1">Track Complaint &amp; SMS Status</h3>
+            <p class="text-xs text-slate-400 mb-3">Enter your complaint ID to check daily progress &amp; SMS updates.</p>
+          </div>
+          <div class="flex gap-2">
+            <input type="number" id="quick-track-id" placeholder="Complaint ID (e.g. 101)"
+              class="w-full bg-surfacealt border border-bordercolor rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-400">
+            <button onclick="quickTrackComplaint()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-xl text-xs shrink-0 transition">
+              Track
+            </button>
+          </div>
+        </div>
+
+        <!-- AI Civic Assistant Banner Card -->
+        <div class="glass-panel p-6 border-l-4 border-l-emerald-500 flex flex-col justify-between relative overflow-hidden">
+          <div class="flex items-center justify-between mb-2">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <i class="fa-solid fa-robot text-xl"></i>
+            </div>
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">24/7 AI Online</span>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-white mb-1">Ask Civic AI Assistant</h3>
+            <p class="text-xs text-slate-400 mb-4">Need help understanding municipal services or checking resolution turnaround times?</p>
+          </div>
+          <button onclick="toggleAIChat()" class="w-full bg-surfacealt hover:bg-slate-800 border border-emerald-500/30 text-emerald-300 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition">
+            <i class="fa-solid fa-comments"></i>
+            <span>Start AI Conversation</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- CITIZEN PORTAL MAIN SPLIT GRID (Map + Live Feed) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- LEFT COLUMN: Interactive City Issue Map (8 cols) -->
+        <div class="lg:col-span-8 space-y-4">
+          <div class="glass-panel p-5 flex flex-col h-[560px]">
+            <!-- Map Header Controls -->
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                  <i class="fa-solid fa-map-location-dot text-sky-400"></i>
+                  <span>Live City Issues Heatmap</span>
+                </h3>
+                <p class="text-xs text-slate-400">Click any marker on the city grid to view reported issues and status</p>
+              </div>
+
+              <!-- Map Filter Badges -->
+              <div class="flex items-center gap-1.5 bg-darkbg p-1 rounded-xl border border-bordercolor text-xs">
+                <button onclick="filterMapMarkers('all')" class="map-filter-btn px-2.5 py-1 rounded-lg bg-sky-500/20 text-sky-300 font-medium">All</button>
+                <button onclick="filterMapMarkers('reported')" class="map-filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-slate-200">🔴 Reported</button>
+                <button onclick="filterMapMarkers('in_progress')" class="map-filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-slate-200">🟡 In Progress</button>
+                <button onclick="filterMapMarkers('resolved')" class="map-filter-btn px-2.5 py-1 rounded-lg text-slate-400 hover:text-slate-200">🟢 Resolved</button>
+              </div>
+            </div>
+
+            <!-- Leaflet Container -->
+            <div id="citizen-map" class="w-full flex-1 rounded-xl border border-bordercolor z-10"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN: My Reports & DevOps Pipeline Feed (4 cols) -->
+        <div class="lg:col-span-4 space-y-4">
+          <div class="glass-panel p-5 h-[560px] flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-bordercolor mb-4">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-stream text-indigo-400"></i>
+                <span>My Reports &amp; Daily Status</span>
+              </h3>
+              <button onclick="loadCitizenComplaintsFromUI()" class="text-xs text-sky-400 hover:text-sky-300">
+                <i class="fa-solid fa-rotate-right"></i> Refresh
+              </button>
+            </div>
+
+            <!-- Scrollable Complaints Feed -->
+            <div id="recent-reports-feed" class="flex-1 overflow-y-auto space-y-3.5 pr-1">
+              <!-- Live Complaint Feed Items injected via JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CITIZEN SUMMARY STATS ROW (Matching Image 3 & 4) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div class="glass-panel p-5 flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-xl shrink-0">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 font-medium">Total Reports Resolved</div>
+            <div class="text-2xl font-bold text-white flex items-center gap-2 font-heading">
+              <span>980</span>
+              <span class="text-xs text-emerald-400 font-normal"><i class="fa-solid fa-arrow-trend-up"></i> +12%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-panel p-5 flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 text-xl shrink-0">
+            <i class="fa-solid fa-stopwatch"></i>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 font-medium">Smart Avg Resolution Time</div>
+            <div class="text-2xl font-bold text-white flex items-center gap-2 font-heading">
+              <span>43s</span>
+              <span class="text-xs text-sky-400 font-normal"><i class="fa-solid fa-bolt"></i> Ultra Fast</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-panel p-5 flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-xl shrink-0">
+            <i class="fa-solid fa-heart-pulse"></i>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 font-medium">Community Impact Score</div>
+            <div class="text-2xl font-bold text-white flex items-center gap-2 font-heading">
+              <span>98%</span>
+              <span class="text-xs text-indigo-400 font-normal">Highly Rated</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-panel p-5 flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 text-xl shrink-0">
+            <i class="fa-solid fa-microchip"></i>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 font-medium">AI Triage Accuracy</div>
+            <div class="text-2xl font-bold text-slate-900 flex items-center gap-2 font-heading">
+              <span>99.4%</span>
+              <span class="text-xs text-amber-600 font-normal">Smart AI Vision</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ================================================================= -->
+    <!-- 2. ADMIN COMMAND CENTER VIEW                                      -->
+    <!-- ================================================================= -->
+    <div id="admin-view" class="hidden space-y-6">
+
+      <!-- ADMIN AUTH SECURITY GATE BANNER (Req #6, #13, #14) -->
+      <div id="admin-security-gate" class="glass-panel p-6 border-l-4 border-l-indigo-500 bg-gradient-to-r from-indigo-950/40 via-surfacecard to-sky-950/40 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div class="space-y-2">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            <i class="fa-solid fa-lock"></i>
+            <span>Authorized Municipal Staff Only</span>
+          </div>
+          <h2 class="text-xl font-bold font-heading text-white">Admin Command Center Security Clearance Gate</h2>
+          <p class="text-xs sm:text-sm text-slate-300 max-w-2xl">
+            Access to city monitoring figures, district heatmaps, and resolution dispatch controls requires authorized Admin credentials or Super Admin RBAC permission approval.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3 shrink-0">
+          <button onclick="openAuthModal('login')" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition">
+            <i class="fa-solid fa-key"></i>
+            <span>Admin Staff Sign In</span>
+          </button>
+          <button onclick="openAuthModal('admin-req')" class="bg-surfacealt hover:bg-slate-800 text-slate-200 border border-bordercolor font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition">
+            <i class="fa-solid fa-file-signature text-indigo-400"></i>
+            <span>Apply for Admin Rights</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ADMIN CONTROL BAR & SUPER ADMIN RBAC PANEL LAUNCHER -->
+      <div class="glass-panel p-4 flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-sky-500">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+            <i class="fa-solid fa-user-shield text-lg"></i>
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <span>Municipal Command &amp; Triage Center</span>
+              <span id="admin-role-badge" class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Super Admin</span>
+            </h2>
+            <p class="text-xs text-slate-400">Manage city complaints, monitor AI dispatch, and analyze resolution trends</p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <!-- Super Admin RBAC Modal Button -->
+          <button onclick="openSuperAdminModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-indigo-500/20 transition">
+            <i class="fa-solid fa-user-gear"></i>
+            <span>Super Admin RBAC Panel</span>
+          </button>
+
+          <div class="flex items-center gap-2 bg-surfacealt px-3 py-1.5 rounded-xl border border-bordercolor">
+            <label for="admin-id" class="text-xs text-slate-400 font-medium">Admin ID:</label>
+            <input type="number" id="admin-id" value="1" min="1" class="w-16 bg-darkbg border border-bordercolor rounded-lg px-2 py-1 text-xs text-white font-bold text-center">
+          </div>
+
+          <button id="load-dashboard" onclick="loadAdminDashboard()"
+            class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-sky-500/20 transition">
+            <i class="fa-solid fa-rotate text-xs"></i>
+            <span>Load Dashboard</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- TOP KEY METRICS CARDS ROW (Exact Match for Image 3 elements) -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <!-- Total Reports Card -->
+        <div class="glass-panel p-4 border-t-2 border-t-sky-500">
+          <div class="text-xs text-slate-400 font-medium mb-1">Total Reports</div>
+          <div class="text-3xl font-extrabold text-white font-heading" id="stat-total-reports">1,250</div>
+          <div class="text-[11px] text-emerald-400 font-medium mt-1 flex items-center gap-1">
+            <i class="fa-solid fa-arrow-up"></i> +14% vs last month
+          </div>
+        </div>
+
+        <!-- Resolved (AI Assisted) Card -->
+        <div class="glass-panel p-4 border-t-2 border-t-emerald-500">
+          <div class="text-xs text-slate-400 font-medium mb-1">Resolved (AI Assisted)</div>
+          <div class="text-3xl font-extrabold text-emerald-400 font-heading" id="stat-resolved-ai">980</div>
+          <div class="text-[11px] text-emerald-400 font-medium mt-1 flex items-center gap-1">
+            <i class="fa-solid fa-check-double"></i> 78.4% auto-dispatched
+          </div>
+        </div>
+
+        <!-- Pending / Unresolved Card -->
+        <div class="glass-panel p-4 border-t-2 border-t-amber-500">
+          <div class="text-xs text-slate-400 font-medium mb-1">Pending Triage</div>
+          <div class="text-3xl font-extrabold text-amber-400 font-heading" id="stat-pending">270</div>
+          <div class="text-[11px] text-slate-400 font-medium mt-1 flex items-center gap-1">
+            <i class="fa-solid fa-clock"></i> In active pipeline
+          </div>
+        </div>
+
+        <!-- Resolution Time Card -->
+        <div class="glass-panel p-4 border-t-2 border-t-indigo-500">
+          <div class="text-xs text-slate-400 font-medium mb-1">Smart Avg Turnaround</div>
+          <div class="text-3xl font-extrabold text-indigo-300 font-heading" id="stat-avg-time">43s</div>
+          <div class="text-[11px] text-indigo-400 font-medium mt-1 flex items-center gap-1">
+            <i class="fa-solid fa-bolt"></i> -15s speedup
+          </div>
+        </div>
+
+        <!-- AI Prediction Accuracy Card -->
+        <div class="glass-panel p-4 border-t-2 border-t-rose-500">
+          <div class="text-xs text-slate-400 font-medium mb-1">AI Prediction Accuracy</div>
+          <div class="text-3xl font-extrabold text-rose-400 font-heading" id="stat-ai-accuracy">98%</div>
+          <div class="text-[11px] text-slate-400 font-medium mt-1 flex items-center gap-1">
+            <i class="fa-solid fa-bullseye"></i> High confidence
+          </div>
+        </div>
+      </div>
+
+      <!-- ANALYTICS CHARTS GRID ROW 1 (Trends & Status Summary) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Complaint Trends Line Chart (7 cols) -->
+        <div class="lg:col-span-7 glass-panel p-5 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-chart-line text-sky-400"></i>
+                <span>Complaint Trends</span>
+              </h3>
+              <p class="text-xs text-slate-400">Volume over time bucketed by interval</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <select id="trend-group-by" onchange="loadTrends()" class="bg-darkbg border border-bordercolor rounded-xl px-3 py-1.5 text-xs text-white">
+                <option value="day">By Day</option>
+                <option value="week">By Week</option>
+                <option value="month">By Month</option>
+              </select>
+            </div>
+          </div>
+          <div class="w-full h-72">
+            <canvas id="chart-trends"></canvas>
+          </div>
+        </div>
+
+        <!-- Status Wise Summary Stacked Bar Chart (5 cols) -->
+        <div class="lg:col-span-5 glass-panel p-5 flex flex-col justify-between">
+          <div class="mb-4">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-chart-pie text-indigo-400"></i>
+              <span>Status Wise Breakdown</span>
+            </h3>
+            <p class="text-xs text-slate-400">Distribution across Open, Assigned, In-Progress, &amp; Resolved</p>
+          </div>
+          <div class="w-full h-72">
+            <canvas id="chart-status"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ANALYTICS CHARTS GRID ROW 2 (Month Wise Area + Top Issues) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Month Wise Complaint by Area Bar Chart (7 cols) -->
+        <div class="lg:col-span-7 glass-panel p-5 flex flex-col justify-between">
+          <div class="mb-4">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-chart-column text-emerald-400"></i>
+              <span>Month Wise Complaints by Area</span>
+            </h3>
+            <p class="text-xs text-slate-400">District breakdown across North, South, Central &amp; East zones</p>
+          </div>
+          <div class="w-full h-72">
+            <canvas id="chart-area"></canvas>
+          </div>
+        </div>
+
+        <!-- Top Issues This Month List (5 cols) -->
+        <div class="lg:col-span-5 glass-panel p-5 flex flex-col justify-between">
+          <div>
+            <h3 class="text-base font-bold text-white mb-1 flex items-center gap-2">
+              <i class="fa-solid fa-fire text-rose-400"></i>
+              <span>Top Issues This Month</span>
+            </h3>
+            <p class="text-xs text-slate-400 mb-4">Highest reported civic categories</p>
+          </div>
+
+          <div class="space-y-3.5 text-xs">
+            <div>
+              <div class="flex justify-between font-semibold mb-1">
+                <span class="text-slate-200"><i class="fa-solid fa-road text-rose-400 mr-2"></i>Road &amp; Potholes</span>
+                <span class="text-rose-400 font-bold">35% (438 cases)</span>
+              </div>
+              <div class="w-full bg-darkbg rounded-full h-2 overflow-hidden border border-bordercolor">
+                <div class="bg-gradient-to-r from-rose-500 to-pink-500 h-2 rounded-full" style="width: 35%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between font-semibold mb-1">
+                <span class="text-slate-200"><i class="fa-solid fa-lightbulb text-amber-400 mr-2"></i>Street Lighting</span>
+                <span class="text-amber-400 font-bold">25% (312 cases)</span>
+              </div>
+              <div class="w-full bg-darkbg rounded-full h-2 overflow-hidden border border-bordercolor">
+                <div class="bg-gradient-to-r from-amber-500 to-yellow-400 h-2 rounded-full" style="width: 25%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between font-semibold mb-1">
+                <span class="text-slate-200"><i class="fa-solid fa-trash-can text-sky-400 mr-2"></i>Waste Overflow</span>
+                <span class="text-sky-400 font-bold">20% (250 cases)</span>
+              </div>
+              <div class="w-full bg-darkbg rounded-full h-2 overflow-hidden border border-bordercolor">
+                <div class="bg-gradient-to-r from-sky-500 to-cyan-400 h-2 rounded-full" style="width: 20%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between font-semibold mb-1">
+                <span class="text-slate-200"><i class="fa-solid fa-droplet text-indigo-400 mr-2"></i>Water &amp; Drainage</span>
+                <span class="text-indigo-400 font-bold">15% (188 cases)</span>
+              </div>
+              <div class="w-full bg-darkbg rounded-full h-2 overflow-hidden border border-bordercolor">
+                <div class="bg-gradient-to-r from-indigo-500 to-purple-400 h-2 rounded-full" style="width: 15%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between font-semibold mb-1">
+                <span class="text-slate-200"><i class="fa-solid fa-shield-halved text-emerald-400 mr-2"></i>Public Safety</span>
+                <span class="text-emerald-400 font-bold">5% (62 cases)</span>
+              </div>
+              <div class="w-full bg-darkbg rounded-full h-2 overflow-hidden border border-bordercolor">
+                <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full" style="width: 5%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COMPLAINTS FILTERING & TRIAGE TABLE SECTION -->
+      <div class="glass-panel p-6 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-bordercolor">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-list-check text-sky-400"></i>
+              <span>Detailed Complaints Management &amp; Dispatch</span>
+            </h3>
+            <p class="text-xs text-slate-400">Filter, inspect, reassign departments, and update complaint resolution status</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="clearFilters()" class="px-3 py-1.5 rounded-xl border border-bordercolor text-xs text-slate-400 hover:text-white bg-surfacealt">
+              Reset Filters
+            </button>
+            <button onclick="loadComplaints()" class="px-4 py-1.5 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs hover:bg-sky-400 transition">
+              Apply Filters
+            </button>
+          </div>
+        </div>
+
+        <!-- Multi-Filter Inputs Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-xs">
+          <div>
+            <label for="filter-search" class="block text-slate-400 mb-1">Search</label>
+            <input type="text" id="filter-search" placeholder="Search keywords..." class="w-full bg-darkbg border border-bordercolor rounded-xl px-3 py-2 text-white">
+          </div>
+
+          <div>
+            <label for="filter-category" class="block text-slate-400 mb-1">Category</label>
+            <select id="filter-category" class="w-full bg-darkbg border border-bordercolor rounded-xl px-2.5 py-2 text-white">
+              <option value="">All Categories</option>
               <option value="Road">Road</option>
               <option value="Water">Water</option>
               <option value="Waste">Waste</option>
@@ -156,97 +609,318 @@
               <option value="Drainage">Drainage</option>
               <option value="Safety">Safety</option>
               <option value="Other">Other</option>
-              <option value="Unanalyzed">Unanalyzed</option>
             </select>
           </div>
+
           <div>
-            <label for="filter-priority" class="block text-sm text-slate-400 mb-1">Priority</label>
-            <select id="filter-priority" class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm">
-              <option value="">Any</option>
-              <option value="Low">Low</option>
-              <option value="Medium">Medium</option>
-              <option value="High">High</option>
+            <label for="filter-priority" class="block text-slate-400 mb-1">Priority</label>
+            <select id="filter-priority" class="w-full bg-darkbg border border-bordercolor rounded-xl px-2.5 py-2 text-white">
+              <option value="">All Priorities</option>
               <option value="Critical">Critical</option>
-              <option value="Unanalyzed">Unanalyzed</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
             </select>
           </div>
+
           <div>
-            <label for="filter-status" class="block text-sm text-slate-400 mb-1">Status</label>
-            <select id="filter-status" class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm">
-              <option value="">Any</option>
-              <option value="open">open</option>
-              <option value="assigned">assigned</option>
-              <option value="in_progress">in_progress</option>
-              <option value="resolved">resolved</option>
-              <option value="closed">closed</option>
+            <label for="filter-status" class="block text-slate-400 mb-1">Status</label>
+            <select id="filter-status" class="w-full bg-darkbg border border-bordercolor rounded-xl px-2.5 py-2 text-white">
+              <option value="">All Statuses</option>
+              <option value="open">Open</option>
+              <option value="assigned">Assigned</option>
+              <option value="in_progress">In Progress</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
             </select>
           </div>
+
           <div>
-            <label for="filter-department-id" class="block text-sm text-slate-400 mb-1">Department ID</label>
-            <input type="number" id="filter-department-id" min="1" placeholder="e.g. 3"
-              class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm" />
+            <label for="filter-department-id" class="block text-slate-400 mb-1">Department</label>
+            <input type="number" id="filter-department-id" placeholder="Dept ID" class="w-full bg-darkbg border border-bordercolor rounded-xl px-3 py-2 text-white">
           </div>
+
           <div>
-            <label for="filter-location" class="block text-sm text-slate-400 mb-1">Location</label>
-            <input type="text" id="filter-location" placeholder="e.g. Main St"
-              class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm" />
-          </div>
-          <div>
-            <label for="filter-date-from" class="block text-sm text-slate-400 mb-1">Date from</label>
-            <input type="date" id="filter-date-from"
-              class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm" />
-          </div>
-          <div>
-            <label for="filter-date-to" class="block text-sm text-slate-400 mb-1">Date to</label>
-            <input type="date" id="filter-date-to"
-              class="w-full px-3 py-2 bg-surfacealt border border-border rounded-lg text-slate-200 text-sm" />
+            <label for="filter-location" class="block text-slate-400 mb-1">Location</label>
+            <input type="text" id="filter-location" placeholder="e.g. Main St" class="w-full bg-darkbg border border-bordercolor rounded-xl px-3 py-2 text-white">
           </div>
         </div>
-        <button type="button" id="apply-filters-button"
-          class="bg-sky-400 text-slate-900 font-semibold rounded-lg px-4 py-2 text-sm hover:bg-sky-500">Apply Filters</button>
-        <button type="button" id="clear-filters-button"
-          class="bg-surfacealt text-slate-200 border border-border rounded-lg px-4 py-2 text-sm hover:bg-slate-600">Clear Filters</button>
-      </section>
 
-      <section class="bg-surface border border-border rounded-xl p-5">
-        <h2 class="text-base font-semibold mb-3">Complaints</h2>
-        <div class="overflow-x-auto">
-          <table id="complaints-table" class="w-full text-sm border-collapse">
-            <thead>
+        <!-- Master Triage Complaints Table -->
+        <div class="overflow-x-auto rounded-xl border border-bordercolor">
+          <table id="complaints-table" class="w-full text-left text-xs border-collapse">
+            <thead class="bg-surfacealt text-slate-400 uppercase tracking-wider font-semibold border-b border-bordercolor">
               <tr>
-                <th class="text-left px-2 py-2 border-b border-border text-slate-400">ID</th>
-                <th class="text-left px-2 py-2 border-b border-border text-slate-400">Citizen</th>
-                <th class="text-left px-2 py-2 border-b border-border text-slate-400">Description</th>
-                <th class="text-left px-2 py-2 border-b border-border text-slate-400">AI Category / Priority</th>
-                <th class="text-left px-2 py-2 border-b border-border text-slate-400">Department</th>
-                <th class="text-left px-2 py-2 border-b border-border text-slate-400">Status</th>
-                <th class="text-left px-2 py-2 border-b border-border text-slate-400">Update</th>
+                <th class="px-3.5 py-3">ID</th>
+                <th class="px-3.5 py-3">Citizen Contact</th>
+                <th class="px-3.5 py-3">Issue Details &amp; Photo</th>
+                <th class="px-3.5 py-3">AI Triage &amp; SLA</th>
+                <th class="px-3.5 py-3">Department &amp; Remarks</th>
+                <th class="px-3.5 py-3">Status</th>
+                <th class="px-3.5 py-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody>
-              <tr><td colspan="7" class="px-2 py-2">Load the dashboard to view complaints.</td></tr>
+            <tbody id="admin-complaints-tbody" class="divide-y divide-bordercolor">
+              <!-- Injected dynamically via JS -->
             </tbody>
           </table>
         </div>
-      </section>
+      </div>
     </div>
   </main>
 
+
+  <!-- ================================================================= -->
+  <!-- MODAL 1: AUTHENTICATION & CITIZEN GATEKEEPER (Req #2)             -->
+  <!-- ================================================================= -->
+  <div id="auth-modal" class="hidden fixed inset-0 z-50 bg-darkbg/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-surfacecard border border-bordercolor rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 relative">
+      <div class="flex items-center justify-between pb-3 border-b border-bordercolor">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2 font-heading">
+          <i class="fa-solid fa-user-lock text-sky-400"></i>
+          <span>Citizen Authentication</span>
+        </h3>
+        <button onclick="closeAuthModal()" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Auth Tabs -->
+      <div class="flex border-b border-bordercolor text-xs">
+        <button id="auth-login-tab" onclick="switchAuthTab('login')" class="flex-1 py-2 font-bold text-sky-400 border-b-2 border-sky-400">Sign In</button>
+        <button id="auth-signup-tab" onclick="switchAuthTab('signup')" class="flex-1 py-2 font-bold text-slate-400 border-b-2 border-transparent hover:text-white">Register Account</button>
+        <button id="auth-admin-tab" onclick="switchAuthTab('admin_request')" class="flex-1 py-2 font-bold text-slate-400 border-b-2 border-transparent hover:text-white">Request Admin</button>
+      </div>
+
+      <!-- LOGIN FORM -->
+      <form id="login-form" onsubmit="handleLoginSubmit(event)" class="space-y-3.5 text-xs">
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">Email Address</label>
+          <input type="email" id="login-email" required value="faizan@civicservices.pk" class="w-full bg-darkbg border border-bordercolor rounded-xl px-3.5 py-2.5 text-white">
+        </div>
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">Password</label>
+          <input type="password" id="login-password" required value="password123" class="w-full bg-darkbg border border-bordercolor rounded-xl px-3.5 py-2.5 text-white">
+        </div>
+        <button type="submit" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold py-2.5 rounded-xl shadow-lg shadow-sky-500/20 transition">
+          Sign In to Portal
+        </button>
+      </form>
+
+      <!-- SIGNUP FORM -->
+      <form id="signup-form" onsubmit="handleSignupSubmit(event)" class="hidden space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">Full Name</label>
+          <input type="text" id="signup-name" required placeholder="Hafiz Faizan" class="w-full bg-darkbg border border-bordercolor rounded-xl px-3.5 py-2 text-white">
+        </div>
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">Email Address</label>
+          <input type="email" id="signup-email" required placeholder="citizen@civic.pk" class="w-full bg-darkbg border border-bordercolor rounded-xl px-3.5 py-2 text-white">
+        </div>
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">Mobile Phone (For SMS Updates)</label>
+          <input type="text" id="signup-phone" required placeholder="+923001234567" class="w-full bg-darkbg border border-bordercolor rounded-xl px-3.5 py-2 text-white">
+        </div>
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">Password</label>
+          <input type="password" id="signup-password" required minlength="4" placeholder="••••••••" class="w-full bg-darkbg border border-bordercolor rounded-xl px-3.5 py-2 text-white">
+        </div>
+        <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 transition">
+          Create Verified Citizen Account
+        </button>
+      </form>
+
+      <!-- ADMIN REQUEST FORM (Req #13) -->
+      <form id="admin-request-form" onsubmit="handleAdminRequestSubmit(event)" class="hidden space-y-3 text-xs">
+        <p class="text-slate-400 text-[11px]">Admin accounts require approval from the Super Admin / Municipal Director.</p>
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">Department</label>
+          <select id="admin-req-dept" class="w-full bg-darkbg border border-bordercolor rounded-xl px-3 py-2 text-white">
+            <option value="Roads & Highways">Roads &amp; Highways</option>
+            <option value="Electrical Utilities">Electrical Utilities</option>
+            <option value="Solid Waste Mgmt">Solid Waste Mgmt</option>
+            <option value="Water Supply & Sewerage">Water Supply &amp; Sewerage</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">Reason for Admin Rights</label>
+          <textarea id="admin-req-reason" rows="2" placeholder="Municipal officer duties..." class="w-full bg-darkbg border border-bordercolor rounded-xl px-3 py-2 text-white"></textarea>
+        </div>
+        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl transition">
+          Submit Admin Application
+        </button>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- ================================================================= -->
+  <!-- MODAL 2: SUPER ADMIN RBAC & ONBOARDING PANEL (Req #13, #14)       -->
+  <!-- ================================================================= -->
+  <div id="super-admin-modal" class="hidden fixed inset-0 z-50 bg-darkbg/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-surfacecard border border-bordercolor rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto relative">
+      <div class="flex items-center justify-between pb-3 border-b border-bordercolor">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2 font-heading">
+          <i class="fa-solid fa-user-shield text-indigo-400"></i>
+          <span>Super Admin RBAC &amp; Onboarding Gatekeeper</span>
+        </h3>
+        <button onclick="closeSuperAdminModal()" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <h4 class="font-bold text-slate-200">Pending Admin Applications</h4>
+        <div id="admin-applications-list" class="space-y-2.5">
+          <!-- Pending Applications Injected Here -->
+        </div>
+
+        <h4 class="font-bold text-slate-200 pt-2 border-t border-bordercolor">System Role &amp; Permission Rights</h4>
+        <div class="p-3 bg-surfacealt rounded-xl border border-bordercolor space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-white">Default Admin (User #1)</span>
+            <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold">Authorized</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Permissions: Triage, Reassign, Status Resolution, Analytics Monitoring.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ================================================================= -->
+  <!-- MODAL 3: REPORT NEW ISSUE (LIVE CAMERA & AI SCANNER)              -->
+  <!-- ================================================================= -->
+  <div id="report-modal" class="hidden fixed inset-0 z-50 bg-darkbg/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-surfacecard border border-bordercolor rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto relative">
+      <div class="flex items-center justify-between pb-3 border-b border-bordercolor">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2 font-heading">
+          <i class="fa-solid fa-camera-retro text-sky-400"></i>
+          <span>Report a Civic Issue</span>
+        </h3>
+        <button onclick="closeReportModal()" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="complaint-form" onsubmit="submitReportForm(event)" class="space-y-4 text-xs">
+        <!-- Photo Dropzone with Simulated AI Vision Scanning -->
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">Upload Issue Photo (Live AI Vision Analysis)</label>
+          <div id="photo-dropzone" onclick="triggerPhotoUpload()" class="border-2 border-dashed border-sky-500/40 hover:border-sky-400 bg-surfacealt/50 rounded-xl p-4 text-center cursor-pointer relative overflow-hidden group">
+            <input type="file" id="photo-file-input" accept="image/*" class="hidden" onchange="handlePhotoSelect(event)">
+            
+            <div id="photo-placeholder" class="space-y-2">
+              <div class="w-12 h-12 mx-auto rounded-full bg-sky-500/10 flex items-center justify-center text-sky-400 text-xl group-hover:scale-110 transition">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+              </div>
+              <p class="font-medium text-slate-200">Click to upload photo or snap picture</p>
+              <p class="text-[11px] text-slate-400">AI automatically detects issue type, category &amp; severity</p>
+            </div>
+
+            <!-- Preview Image & AI Scanner Effect -->
+            <div id="photo-preview-container" class="hidden relative rounded-lg overflow-hidden">
+              <img id="photo-preview-img" src="" alt="Issue Preview" class="max-h-48 mx-auto object-cover rounded-lg">
+              <div id="ai-scanner-overlay" class="ai-scan-line"></div>
+            </div>
+          </div>
+          <!-- AI Analysis Result Box -->
+          <div id="ai-photo-analysis-box" class="hidden mt-2 p-3 bg-sky-500/10 border border-sky-500/30 rounded-xl text-sky-200">
+            <div class="flex items-center gap-2 font-bold mb-1">
+              <i class="fa-solid fa-microchip text-sky-400"></i>
+              <span>AI Vision Analysis Complete</span>
+            </div>
+            <p id="ai-photo-analysis-text">Detected: Structural Pothole (99.2% confidence) -&gt; Priority: High -&gt; Dept: Road Maintenance</p>
+          </div>
+        </div>
+
+        <div>
+          <label for="description" class="block text-slate-300 font-semibold mb-1">Issue Description</label>
+          <textarea id="description" required rows="3" placeholder="Describe what you observed (e.g. Deep pothole causing traffic slowdown near Main St)..." class="w-full bg-darkbg border border-bordercolor rounded-xl px-3.5 py-2.5 text-white"></textarea>
+        </div>
+
+        <div>
+          <label for="location" class="block text-slate-300 font-semibold mb-1">Location / Address</label>
+          <div class="flex gap-2">
+            <input type="text" id="location" placeholder="e.g. Main Street &amp; 5th Avenue" class="w-full bg-darkbg border border-bordercolor rounded-xl px-3.5 py-2.5 text-white">
+            <button type="button" onclick="detectGPSLocation()" class="bg-surfacealt hover:bg-slate-700 text-sky-400 border border-sky-500/30 font-semibold px-3 py-2 rounded-xl text-xs shrink-0 flex items-center gap-1">
+              <i class="fa-solid fa-location-crosshairs"></i> GPS
+            </button>
+          </div>
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2">
+          <button type="button" onclick="closeReportModal()" class="px-4 py-2 rounded-xl bg-surfacealt text-slate-300 hover:text-white">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold flex items-center gap-2 shadow-lg shadow-sky-500/20">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span>Submit Complaint</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- ================================================================= -->
+  <!-- MODAL 4: FLOATING ASK CIVIC AI CHATBOT DRAWER                    -->
+  <!-- ================================================================= -->
+  <div id="ai-chat-drawer" class="hidden fixed bottom-4 right-4 z-50 w-full sm:w-96 bg-surfacecard border border-sky-500/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[520px]">
+    <!-- Drawer Header -->
+    <div class="bg-gradient-to-r from-slate-900 to-indigo-950 p-3.5 border-b border-bordercolor flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400">
+          <i class="fa-solid fa-robot"></i>
+        </div>
+        <div>
+          <h4 class="font-bold text-xs text-white">Civic AI Assistant</h4>
+          <p class="text-[10px] text-emerald-400 flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Gemini 2.5 Connected
+          </p>
+        </div>
+      </div>
+      <button onclick="toggleAIChat()" class="text-slate-400 hover:text-white p-1">
+        <i class="fa-solid fa-xmark text-base"></i>
+      </button>
+    </div>
+
+    <!-- Chat Messages Body -->
+    <div id="chat-messages-container" class="flex-1 p-3.5 overflow-y-auto space-y-3 text-xs">
+      <div class="flex gap-2.5 items-start">
+        <div class="w-7 h-7 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 shrink-0 text-xs">
+          🤖
+        </div>
+        <div class="bg-surfacealt p-3 rounded-2xl rounded-tl-none border border-bordercolor text-slate-200 space-y-1.5">
+          <p>Hello! I am your <strong>Civic AI Assistant</strong>. How can I help you today?</p>
+          <p class="text-[11px] text-slate-400">You can ask me to track your complaint status, check SLA timelines, or report an issue!</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Prompt Chips -->
+    <div class="p-2 bg-darkbg/50 border-t border-bordercolor flex gap-1.5 overflow-x-auto text-[11px] no-scrollbar">
+      <button onclick="sendQuickPrompt('Track my complaint status')" class="px-2.5 py-1 rounded-full bg-surfacealt border border-bordercolor text-slate-300 whitespace-nowrap hover:text-sky-300">
+        📍 Track Complaint
+      </button>
+      <button onclick="sendQuickPrompt('What is the SLA for Critical issues?')" class="px-2.5 py-1 rounded-full bg-surfacealt border border-bordercolor text-slate-300 whitespace-nowrap hover:text-sky-300">
+        ⏱️ SLA Timelines
+      </button>
+      <button onclick="sendQuickPrompt('How do I report a broken streetlight?')" class="px-2.5 py-1 rounded-full bg-surfacealt border border-bordercolor text-slate-300 whitespace-nowrap hover:text-sky-300">
+        💡 Streetlight
+      </button>
+    </div>
+
+    <!-- Chat Input Form -->
+    <form onsubmit="handleChatSubmit(event)" class="p-2.5 bg-darkbg border-t border-bordercolor flex gap-2">
+      <input type="text" id="chat-input" placeholder="Type your query..." class="w-full bg-surfacealt border border-bordercolor rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400">
+      <button type="submit" class="bg-sky-500 hover:bg-sky-400 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-bold shrink-0">
+        <i class="fa-solid fa-paper-plane"></i>
+      </button>
+    </form>
+  </div>
+
+
+  <!-- MASTER APPLICATION SCRIPTS -->
   <script src="/js/app.js"></script>
   <script src="/js/admin.js"></script>
-  <script>
-    function renderRoute() {
-      const isAdmin = window.location.hash.startsWith("#/admin");
-      document.getElementById("citizen-view").classList.toggle("hidden", isAdmin);
-      document.getElementById("admin-view").classList.toggle("hidden", !isAdmin);
-      document.querySelectorAll(".nav-link").forEach((link) => {
-        const active = link.dataset.route === (isAdmin ? "admin" : "citizen");
-        link.classList.toggle("text-sky-400", active);
-        link.classList.toggle("text-slate-400", !active);
-      });
-    }
-    window.addEventListener("hashchange", renderRoute);
-    renderRoute();
-  </script>
 </body>
 </html>

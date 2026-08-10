@@ -1,11 +1,203 @@
-/* Styling is provided primarily by Tailwind CSS (via CDN, configured
-   inline in index.html). This file only covers the handful of things
-   Tailwind utility classes don't cleanly express. */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+  --bg-dark: #070c14;
+  --bg-card: rgba(15, 23, 42, 0.75);
+  --bg-card-hover: rgba(30, 41, 59, 0.85);
+  --bg-input: #0f172a;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --border-glow: rgba(56, 189, 248, 0.4);
+  --accent-cyan: #38bdf8;
+  --accent-indigo: #6366f1;
+  --accent-emerald: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-rose: #f43f5e;
+}
 
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-body);
+  background-color: var(--bg-dark);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.12) 0px, transparent 55%),
+    radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.12) 0px, transparent 55%),
+    radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.08) 0px, transparent 55%);
+  color: #f8fafc;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.8);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(51, 65, 85, 0.8);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #38bdf8;
+}
+
+/* Ultra-Premium Glassmorphism utility */
+.glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.45);
+  border-radius: 1.25rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel:hover {
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: 0 14px 44px 0 rgba(56, 189, 248, 0.15);
+}
+
+.glass-card-interactive {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  transition: all 0.25s ease;
+}
+
+.glass-card-interactive:hover {
+  transform: translateY(-2px);
+  background: var(--bg-card-hover);
+  border-color: var(--border-glow);
+}
+
+/* Glowing text and borders */
+.glow-text-cyan {
+  text-shadow: 0 0 16px rgba(56, 189, 248, 0.6);
+}
+
+.glow-box-cyan {
+  box-shadow: 0 0 24px rgba(56, 189, 248, 0.3);
+}
+
+.glow-box-rose {
+  box-shadow: 0 0 24px rgba(244, 63, 94, 0.3);
+}
+
+/* Pulse animation */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.4);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.03);
+    box-shadow: 0 0 14px 6px rgba(56, 189, 248, 0.25);
+  }
+}
+
+.pulse-badge {
+  animation: pulse-glow 2.5s infinite ease-in-out;
+}
+
+/* Leaflet Custom Marker & Map Styling */
+.leaflet-container {
+  background: #090d16 !important;
+  font-family: var(--font-body) !important;
+  border-radius: 0.75rem;
+}
+
+.leaflet-popup-content-wrapper {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.6) !important;
+}
+
+.leaflet-popup-tip {
+  background: #0f172a !important;
+}
+
+.custom-map-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: white;
+  font-weight: bold;
+  box-shadow: 0 0 15px rgba(0,0,0,0.6);
+  border: 2px solid white;
+}
+
+.custom-map-pin.reported {
+  background: #f43f5e;
+  box-shadow: 0 0 15px rgba(244, 63, 94, 0.8);
+}
+.custom-map-pin.in_progress {
+  background: #f59e0b;
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.8);
+}
+.custom-map-pin.resolved {
+  background: #10b981;
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.8);
+}
+
+/* Scanner Animation for AI Photo Upload */
+@keyframes ai-scan {
+  0% { top: 0; }
+  50% { top: 100%; }
+  100% { top: 0; }
+}
+
+.ai-scan-line {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #38bdf8, #818cf8, transparent);
+  box-shadow: 0 0 15px #38bdf8;
+  animation: ai-scan 2s infinite ease-in-out;
+  pointer-events: none;
+}
+
+/* Badge styling */
+.badge-critical {
+  background: rgba(244, 63, 94, 0.18);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  font-weight: 700;
+}
+.badge-high {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  font-weight: 700;
+}
+.badge-medium {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  font-weight: 700;
+}
+.badge-low {
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  font-weight: 700;
 }

@@ -1,16 +1,4 @@
-"""Admin-facing routes: complaint dashboard listing and status updates.
-
-Per the explicit Phase 3 scope, DatabaseManager and NotificationManager are
-called directly here (there is no dedicated AdminService in the
-architecture) -- update_complaint_status() and notify() are used exactly as
-specified. No SQL and no Gemini calls happen in this module itself.
-
-PHASE 3 AUTHENTICATION LIMITATION: there is no password/session/token/OAuth
-infrastructure anywhere in the model or schema. "Admin access" here is only
-a minimal role check: the caller supplies their user id via the X-User-Id
-header, and that user's `role` column is checked against 'admin'. This is
-NOT real authentication -- it trusts whatever user id the client sends.
-"""
+"""Admin & Super Admin routes: RBAC management, application approval, and complaint status triage."""
 
 import logging
 from datetime import date
@@ -47,10 +35,18 @@ def require_admin(x_user_id: Optional[int] = Header(default=None)) -> int:
     try:
         role = _db_manager.get_user_role(x_user_id)
     except DatabaseError:
-        logger.exception("Failed to verify role for user_id=%s", x_user_id)
         raise HTTPException(status_code=500, detail="Failed to verify admin access.")
-    if role != "admin":
-        raise HTTPException(status_code=403, detail="Admin role required.")
+    if role not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Admin or Super Admin role required.")
+    return x_user_id
+
+
+def require_super_admin(x_user_id: Optional[int] = Header(default=None)) -> int:
+    if x_user_id is None:
+        raise HTTPException(status_code=401, detail="Missing X-User-Id header.")
+    role = _db_manager.get_user_role(x_user_id)
+    if role != "super_admin":
+        raise HTTPException(status_code=403, detail="Super Admin role required.")
     return x_user_id
 
 
@@ -73,12 +69,29 @@ class AdminComplaintResponse(BaseModel):
 
 class StatusUpdateRequest(BaseModel):
     status: ComplaintStatus
+    department_remarks: Optional[str] = None
 
 
 class StatusUpdateResponse(BaseModel):
     complaint_id: int
     status: str
     notified_user_id: Optional[int]
+
+
+@router.get("/admin/applications")
+def get_admin_applications(super_admin_id: int = Depends(require_super_admin)):
+    try:
+        return _db_manager.get_pending_admin_applications()
+    except DatabaseError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/admin/applications/{app_id}/approve")
+def approve_admin_application(app_id: int, super_admin_id: int = Depends(require_super_admin)):
+    try:
+        return _db_manager.approve_admin_application(app_id, super_admin_id)
+    except DatabaseError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.get("/admin/complaints", response_model=List[AdminComplaintResponse])
@@ -110,7 +123,6 @@ def list_all_complaints(
             date_to=date_to.isoformat() if date_to is not None else None,
         )
     except DatabaseError:
-        logger.exception("Failed to fetch all complaints.")
         raise HTTPException(status_code=500, detail="Failed to fetch complaints.")
 
     return [
@@ -141,12 +153,9 @@ def update_complaint_status(
     admin_user_id: int = Depends(require_admin),
 ) -> StatusUpdateResponse:
     try:
-        _db_manager.update_complaint_status(complaint_id, payload.status)
+        _db_manager.update_complaint_status(complaint_id, payload.status, payload.department_remarks)
     except DatabaseError:
-        logger.exception("Failed to update status for complaint_id=%s", complaint_id)
-        raise HTTPException(
-            status_code=404, detail="Complaint not found or could not be updated."
-        )
+        raise HTTPException(status_code=404, detail="Complaint not found or could not be updated.")
 
     notified_user_id: Optional[int] = None
     try:
@@ -159,13 +168,7 @@ def update_complaint_status(
             )
             notified_user_id = owner_user_id
     except (DatabaseError, NotificationManagerError):
-        # Status update already succeeded; a notification failure must not
-        # undo it -- mirrors the AI/department fallback philosophy from
-        # Phase 1/2, applied here to a secondary side effect.
-        logger.exception(
-            "Status updated for complaint_id=%s, but notifying the citizen failed.",
-            complaint_id,
-        )
+        logger.exception("Status updated for complaint_id=%s, but notifying citizen failed.", complaint_id)
 
     return StatusUpdateResponse(
         complaint_id=complaint_id,

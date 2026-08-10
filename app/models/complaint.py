@@ -1,4 +1,4 @@
-"""Complaint entity representing a citizen-submitted civic complaint."""
+"""Complaint entity representing a citizen-submitted civic complaint with DevOps pipeline stages."""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -14,6 +14,16 @@ class ComplaintStatus(str, Enum):
     CLOSED = "closed"
 
 
+class PipelineStage(str, Enum):
+    SUBMITTED = "submitted"
+    AI_TRIAGED = "ai_triaged"
+    DISPATCHED = "dispatched"
+    IN_REPAIR = "in_repair"
+    QUALITY_CHECK = "quality_check"
+    RESOLVED = "resolved"
+    CLOSED = "closed"
+
+
 @dataclass
 class Complaint:
     user_id: int
@@ -21,6 +31,14 @@ class Complaint:
     department_id: Optional[int] = None
     location: Optional[str] = None
     status: ComplaintStatus = ComplaintStatus.OPEN
+    pipeline_stage: PipelineStage = PipelineStage.SUBMITTED
+    sla_days: int = 7
+    sla_due_date: Optional[datetime] = None
+    sla_status: str = "on_time"
+    department_remarks: Optional[str] = None
+    rating_score: Optional[int] = None
+    review_comment: Optional[str] = None
+    image_url: Optional[str] = None
     id: Optional[int] = None
     resolved_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
