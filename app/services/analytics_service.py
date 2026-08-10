@@ -83,6 +83,12 @@ class AnalyticsService:
             raise AnalyticsServiceError(f"Failed to compute complaint trends: {exc}") from exc
         return [{"period": period, "count": count} for period, count in rows]
 
+    def active_sla_breaches(self) -> int:
+        try:
+            return self._db_manager.count_active_sla_breaches()
+        except DatabaseError as exc:
+            raise AnalyticsServiceError(f"Failed to compute active SLA breaches: {exc}") from exc
+
     def resolution_time_stats(self) -> Dict[str, Optional[float]]:
         try:
             avg_hours, min_hours, max_hours, resolved_count = (

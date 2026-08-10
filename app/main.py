@@ -36,16 +36,22 @@ def create_app(
     db_manager.initialize_database()
 
     ai_service = ai_service or AIAnalyzer()
-    complaint_manager = ComplaintManager(db_manager=db_manager, ai_service=ai_service)
-    analytics_service = AnalyticsService(db_manager=db_manager)
     notification_manager = NotificationManager(db_manager=db_manager)
+    complaint_manager = ComplaintManager(
+        db_manager=db_manager, ai_service=ai_service, notification_manager=notification_manager
+    )
+    analytics_service = AnalyticsService(db_manager=db_manager)
 
     complaint_routes.init_app(
         complaint_manager=complaint_manager,
         db_manager=db_manager,
         notification_manager=notification_manager,
     )
-    admin_routes.init_app(db_manager=db_manager, notification_manager=notification_manager)
+    admin_routes.init_app(
+        db_manager=db_manager,
+        notification_manager=notification_manager,
+        complaint_manager=complaint_manager,
+    )
     analytics_routes.init_app(analytics_service=analytics_service)
     user_routes.init_app(db_manager=db_manager)
 

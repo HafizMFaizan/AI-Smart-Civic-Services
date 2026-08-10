@@ -6,6 +6,20 @@ let chartTrendsInstance = null;
 let chartStatusInstance = null;
 let chartAreaInstance = null;
 
+const CATEGORY_ISSUE_IMAGES = {
+  Road: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=600&q=80",
+  Water: "https://images.unsplash.com/photo-1502691876148-a84978e59af8?auto=format&fit=crop&w=600&q=80",
+  Waste: "https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=600&q=80",
+  Electricity: "https://images.unsplash.com/photo-1509391365360-2e959784a276?auto=format&fit=crop&w=600&q=80",
+  Drainage: "https://images.unsplash.com/photo-1541544537156-7627a7a4aa1c?auto=format&fit=crop&w=600&q=80",
+  Safety: "https://images.unsplash.com/photo-1582139329536-e7284fece509?auto=format&fit=crop&w=600&q=80",
+  Other: "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=600&q=80"
+};
+
+function getRandomIssueImg(category) {
+  return CATEGORY_ISSUE_IMAGES[category] || CATEGORY_ISSUE_IMAGES.Other;
+}
+
 const ADMIN_SAMPLE_COMPLAINTS = [
   {
     complaint_id: 101,
@@ -210,7 +224,7 @@ async function loadComplaints() {
   const tbody = document.getElementById("admin-complaints-tbody");
   if (!tbody) return;
 
-  tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-4 text-center text-slate-400">Loading complaints...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-4 text-center text-slate-400">Loading complaints...</td></tr>`;
 
   try {
     const res = await fetch(`${API_BASE}/admin/complaints`, { headers: adminHeaders() });
@@ -248,6 +262,7 @@ async function loadComplaints() {
             <div class="text-[11px] text-amber-400 font-bold flex items-center gap-1">
               <i class="fa-solid fa-clock"></i> SLA: ${c.sla_days || 7} Days Target
             </div>
+            ${slaBadge(c.sla_status)}
           </div>
         </td>
         <td class="px-3.5 py-3 font-medium text-slate-300">
@@ -267,6 +282,9 @@ async function loadComplaints() {
             <option value="closed" ${c.status === 'closed' ? 'selected' : ''}>closed</option>
           </select>
         </td>
+        <td class="px-3.5 py-3">
+          ${pipelineStageCell(c.complaint_id, c.pipeline_stage)}
+        </td>
         <td class="px-3.5 py-3 text-right">
           <div class="flex items-center justify-end gap-1.5">
             <button onclick="resolveComplaintNow(${c.complaint_id})" title="Instant Resolve with Green SLA Remarks" class="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
@@ -277,8 +295,67 @@ async function loadComplaints() {
       </tr>
     `).join("");
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-4 text-center text-rose-400">Failed to load complaints.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-4 text-center text-rose-400">Failed to load complaints.</td></tr>`;
   }
+}
+
+const PIPELINE_STAGE_ORDER = ["submitted", "ai_triaged", "dispatched", "in_repair", "quality_check"];
+const PIPELINE_STAGE_LABELS = {
+  submitted: "Submitted",
+  ai_triaged: "AI Triaged",
+  dispatched: "Dispatched",
+  in_repair: "In Repair",
+  quality_check: "Quality Check",
+  resolved: "Resolved",
+  closed: "Closed"
+};
+
+function slaBadge(status) {
+  if (status === "breached") {
+    return `<div class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 inline-flex items-center gap-1 mt-1">
+      <i class="fa-solid fa-triangle-exclamation"></i> SLA BREACHED
+    </div>`;
+  }
+  if (status === "on_time") {
+    return `<div class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 inline-flex items-center gap-1 mt-1">
+      <i class="fa-solid fa-circle-check"></i> ON TIME
+    </div>`;
+  }
+  return '';
+}
+
+function pipelineStageCell(complaintId, stage) {
+  const label = PIPELINE_STAGE_LABELS[stage] || "Submitted";
+  const stageIndex = PIPELINE_STAGE_ORDER.indexOf(stage);
+  const nextStage = stageIndex >= 0 && stageIndex < PIPELINE_STAGE_ORDER.length - 1
+    ? PIPELINE_STAGE_ORDER[stageIndex + 1]
+    : null;
+
+  return `
+    <div class="text-[11px] font-semibold text-sky-300">${label}</div>
+    ${nextStage ? `
+      <button onclick="advanceStage(${complaintId}, '${nextStage}')" title="Advance to ${PIPELINE_STAGE_LABELS[nextStage]}" class="mt-1 px-2 py-0.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-[10px] font-bold">
+        <i class="fa-solid fa-forward"></i> Advance
+      </button>
+    ` : `<div class="text-[10px] text-slate-500">Pipeline complete</div>`}
+  `;
+}
+
+async function advanceStage(id, nextStage) {
+  try {
+    const res = await fetch(`${API_BASE}/admin/complaints/${id}/stage`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...adminHeaders() },
+      body: JSON.stringify({ stage: nextStage })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || `Failed to advance complaint #${id}.`);
+    }
+  } catch (err) {
+    alert(`Failed to advance complaint #${id}.`);
+  }
+  loadComplaints();
 }
 
 async function updateComplaintStatusUI(id, status) {

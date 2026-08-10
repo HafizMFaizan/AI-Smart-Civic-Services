@@ -8,12 +8,14 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
 from app.models.ai_analysis import ComplaintCategory, ComplaintPriority
-from app.models.complaint import ComplaintStatus
+from app.models.complaint import ComplaintStatus, PipelineStage
+from app.services.complaint_manager import ComplaintManager, ComplaintManagerError
 from app.services.db_manager import UNANALYZED_LABEL, DatabaseError, DatabaseManager
 from app.services.notification_manager import NotificationManager, NotificationManagerError
 
 _VALID_CATEGORY_FILTERS = {category.value for category in ComplaintCategory} | {UNANALYZED_LABEL}
 _VALID_PRIORITY_FILTERS = {priority.value for priority in ComplaintPriority} | {UNANALYZED_LABEL}
+_VALID_SLA_STATUS_FILTERS = {"on_time", "breached"}
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +23,18 @@ router = APIRouter(tags=["admin"])
 
 _db_manager: Optional[DatabaseManager] = None
 _notification_manager: Optional[NotificationManager] = None
+_complaint_manager: Optional[ComplaintManager] = None
 
 
-def init_app(db_manager: DatabaseManager, notification_manager: NotificationManager) -> None:
-    global _db_manager, _notification_manager
+def init_app(
+    db_manager: DatabaseManager,
+    notification_manager: NotificationManager,
+    complaint_manager: Optional[ComplaintManager] = None,
+) -> None:
+    global _db_manager, _notification_manager, _complaint_manager
     _db_manager = db_manager
     _notification_manager = notification_manager
+    _complaint_manager = complaint_manager
 
 
 def require_admin(x_user_id: Optional[int] = Header(default=None)) -> int:
@@ -65,6 +73,9 @@ class AdminComplaintResponse(BaseModel):
     ai_summary: Optional[str]
     ai_status: Optional[str]
     date: Optional[str]
+    pipeline_stage: Optional[str]
+    sla_due_date: Optional[str]
+    sla_status: Optional[str]
 
 
 class StatusUpdateRequest(BaseModel):
@@ -75,6 +86,16 @@ class StatusUpdateRequest(BaseModel):
 class StatusUpdateResponse(BaseModel):
     complaint_id: int
     status: str
+    notified_user_id: Optional[int]
+
+
+class StageUpdateRequest(BaseModel):
+    stage: PipelineStage
+
+
+class StageUpdateResponse(BaseModel):
+    complaint_id: int
+    pipeline_stage: str
     notified_user_id: Optional[int]
 
 
@@ -105,11 +126,14 @@ def list_all_complaints(
     search: Optional[str] = Query(default=None),
     date_from: Optional[date] = Query(default=None),
     date_to: Optional[date] = Query(default=None),
+    sla_status: Optional[str] = Query(default=None),
 ) -> List[AdminComplaintResponse]:
     if category is not None and category not in _VALID_CATEGORY_FILTERS:
         raise HTTPException(status_code=422, detail=f"Invalid category filter: {category!r}")
     if priority is not None and priority not in _VALID_PRIORITY_FILTERS:
         raise HTTPException(status_code=422, detail=f"Invalid priority filter: {priority!r}")
+    if sla_status is not None and sla_status not in _VALID_SLA_STATUS_FILTERS:
+        raise HTTPException(status_code=422, detail=f"Invalid sla_status filter: {sla_status!r}")
 
     try:
         rows = _db_manager.get_all_complaints(
@@ -121,6 +145,7 @@ def list_all_complaints(
             search=search,
             date_from=date_from.isoformat() if date_from is not None else None,
             date_to=date_to.isoformat() if date_to is not None else None,
+            sla_status=sla_status,
         )
     except DatabaseError:
         raise HTTPException(status_code=500, detail="Failed to fetch complaints.")
@@ -141,6 +166,9 @@ def list_all_complaints(
             ai_summary=row[11],
             ai_status=row[12],
             date=str(row[13]) if row[13] is not None else None,
+            pipeline_stage=row[14],
+            sla_due_date=str(row[15]) if row[15] is not None else None,
+            sla_status=row[16],
         )
         for row in rows
     ]
@@ -173,5 +201,39 @@ def update_complaint_status(
     return StatusUpdateResponse(
         complaint_id=complaint_id,
         status=payload.status.value,
+        notified_user_id=notified_user_id,
+    )
+
+
+@router.patch("/admin/complaints/{complaint_id}/stage", response_model=StageUpdateResponse)
+def advance_complaint_stage(
+    complaint_id: int,
+    payload: StageUpdateRequest,
+    admin_user_id: int = Depends(require_admin),
+) -> StageUpdateResponse:
+    if _complaint_manager is None:
+        raise HTTPException(status_code=500, detail="Pipeline stage advancement is not configured.")
+
+    try:
+        new_stage = _complaint_manager.advance_pipeline_stage(complaint_id, payload.stage)
+    except ComplaintManagerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    notified_user_id: Optional[int] = None
+    try:
+        owner_user_id = _db_manager.get_complaint_owner(complaint_id)
+        if owner_user_id is not None:
+            _notification_manager.notify(
+                user_id=owner_user_id,
+                message=f"Your complaint has progressed to stage '{new_stage}'.",
+                complaint_id=complaint_id,
+            )
+            notified_user_id = owner_user_id
+    except (DatabaseError, NotificationManagerError):
+        logger.exception("Stage updated for complaint_id=%s, but notifying citizen failed.", complaint_id)
+
+    return StageUpdateResponse(
+        complaint_id=complaint_id,
+        pipeline_stage=new_stage,
         notified_user_id=notified_user_id,
     )

@@ -36,6 +36,7 @@ class AnalyticsDashboardResponse(BaseModel):
     by_priority: Dict[str, int]
     by_status: Dict[str, int]
     by_department: Dict[str, int]
+    active_sla_breaches: int
 
 
 class TrendPoint(BaseModel):
@@ -66,6 +67,7 @@ def get_analytics_dashboard(
             by_priority=_analytics_service.complaints_by_priority(),
             by_status=_analytics_service.complaints_by_status(),
             by_department=_analytics_service.complaints_by_department(),
+            active_sla_breaches=_analytics_service.active_sla_breaches(),
         )
     except AnalyticsServiceError:
         logger.exception("Failed to compute analytics dashboard.")

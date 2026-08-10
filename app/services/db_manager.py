@@ -418,6 +418,14 @@ class DatabaseManager:
         except sqlite3.Error as exc:
             raise DatabaseError(f"Failed to update complaint department: {exc}") from exc
 
+    _EFFECTIVE_SLA_STATUS_SQL = """
+        CASE
+            WHEN c.status IN ('resolved', 'closed') THEN c.sla_status
+            WHEN c.sla_due_date IS NOT NULL AND CURRENT_TIMESTAMP > c.sla_due_date THEN 'breached'
+            ELSE 'on_time'
+        END
+    """
+
     def get_all_complaints(
         self,
         category: Optional[str] = None,
@@ -428,14 +436,16 @@ class DatabaseManager:
         search: Optional[str] = None,
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
+        sla_status: Optional[str] = None,
     ) -> List[Tuple]:
         try:
             with self._connect() as conn:
-                query = """
+                query = f"""
                     SELECT
                         c.id, c.user_id, u.name, u.email, c.description, c.location, c.status,
                         c.department_id, d.name AS assigned_department, a.category, a.priority,
-                        a.summary AS ai_summary, a.ai_status, c.created_at
+                        a.summary AS ai_summary, a.ai_status, c.created_at,
+                        c.pipeline_stage, c.sla_due_date, {self._EFFECTIVE_SLA_STATUS_SQL} AS effective_sla_status
                     FROM complaints c
                     JOIN users u ON c.user_id = u.id
                     LEFT JOIN departments d ON c.department_id = d.id
@@ -481,10 +491,49 @@ class DatabaseManager:
                     query += " AND DATE(c.created_at) <= DATE(?)"
                     params.append(date_to)
 
+                if sla_status:
+                    query += f" AND {self._EFFECTIVE_SLA_STATUS_SQL} = ?"
+                    params.append(sla_status)
+
                 query += " ORDER BY c.created_at DESC"
                 return conn.execute(query, params).fetchall()
         except sqlite3.Error as exc:
             raise DatabaseError(f"Failed to fetch complaints: {exc}") from exc
+
+    def get_admin_user_ids(self) -> List[int]:
+        try:
+            with self._connect() as conn:
+                rows = conn.execute(
+                    "SELECT id FROM users WHERE role IN ('admin', 'super_admin')"
+                ).fetchall()
+                return [row[0] for row in rows]
+        except sqlite3.Error as exc:
+            raise DatabaseError(f"Failed to fetch admin user ids: {exc}") from exc
+
+    def count_active_sla_breaches(self) -> int:
+        try:
+            with self._connect() as conn:
+                row = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM complaints c
+                    WHERE c.status NOT IN ('resolved', 'closed')
+                      AND c.sla_due_date IS NOT NULL
+                      AND CURRENT_TIMESTAMP > c.sla_due_date
+                    """
+                ).fetchone()
+                return row[0] if row else 0
+        except sqlite3.Error as exc:
+            raise DatabaseError(f"Failed to count active SLA breaches: {exc}") from exc
+
+    def get_complaint_pipeline_stage(self, complaint_id: int) -> Optional[str]:
+        try:
+            with self._connect() as conn:
+                row = conn.execute(
+                    "SELECT pipeline_stage FROM complaints WHERE id = ?", (complaint_id,)
+                ).fetchone()
+                return row[0] if row else None
+        except sqlite3.Error as exc:
+            raise DatabaseError(f"Failed to fetch pipeline stage: {exc}") from exc
 
     def get_citizen_complaints(self, user_id: int) -> List[Tuple]:
         try:
